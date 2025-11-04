@@ -1,0 +1,14 @@
+{
+  "name": "msi-remote-agent-server",
+  "version": "1.0.0",
+  "description": "Central WebSocket server for MSI Remote Agent system",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "wake_on_lan": "^1.0.0"
+  }
+}

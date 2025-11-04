@@ -1,0 +1,6 @@
+{
+  "serverUrl": "wss://val-closefisted-morgan.ngrok-free.dev",
+  "heartbeatInterval": 30000,
+  "reconnectInterval": 5000,
+  "logLevel": "info"
+}

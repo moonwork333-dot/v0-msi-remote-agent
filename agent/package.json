@@ -1,0 +1,25 @@
+{
+  "name": "msi-remote-agent",
+  "version": "1.0.0",
+  "description": "Agent service for MSI Remote Agent system",
+  "main": "service.js",
+  "scripts": {
+    "start": "node service.js",
+    "dev": "node service.js",
+    "build": "pkg . --targets node18-win-x64 --output dist/msi-agent.exe",
+    "build-installer": "node build-msi.js"
+  },
+  "bin": "service.js",
+  "pkg": {
+    "assets": ["node_modules/**/*"],
+    "outputPath": "dist"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "screenshot-desktop": "^1.15.0",
+    "robotjs": "^0.6.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}
