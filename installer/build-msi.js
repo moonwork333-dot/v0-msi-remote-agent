@@ -50,7 +50,12 @@ try {
 // Step 5: Link and create MSI
 console.log("Step 5: Creating MSI installer...")
 try {
-  execSync("light obj\\Product.wixobj -out MSIRemoteAgent.msi -ext WixUIExtension", {
+  const outputDir = path.join(__dirname, "output")
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true })
+  }
+
+  execSync("light obj\\Product.wixobj -out output\\MSIRemoteAgent-1.0.0.msi -ext WixUIExtension", {
     cwd: __dirname,
     stdio: "inherit",
   })
@@ -62,5 +67,5 @@ try {
 
 console.log("========================================")
 console.log("✓ Build complete!")
-console.log("MSI installer location:", path.join(__dirname, "MSIRemoteAgent.msi"))
+console.log("MSI installer location:", path.join(__dirname, "output", "MSIRemoteAgent-1.0.0.msi"))
 console.log("========================================")
