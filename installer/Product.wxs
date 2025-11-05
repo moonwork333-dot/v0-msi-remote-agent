@@ -21,14 +21,14 @@
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER" Name="MSI Remote Agent">
+          <!-- Renamed the file to agent.exe for consistency -->
           <Component Id="AgentExecutable" Guid="87654321-4321-4321-4321-210987654321">
             <File Id="AgentExe" 
-                  Source="..\agent\dist\msi-agent.exe" 
+                  Source="..\agent\dist\v0.2 agent.exe"
+                  Name="agent.exe"
                   KeyPath="yes" 
                   Checksum="yes" />
           </Component>
-
-          <!-- Removed NSSM component - using native Windows Service instead -->
 
           <!-- Configuration file -->
           <Component Id="ConfigFile" Guid="11111111-2222-3333-4444-555555555555">
@@ -77,13 +77,13 @@
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
 
-    <!-- Updated custom actions to use native Windows Service (sc.exe) instead of NSSM -->
+    <!-- Changed Return from "ignore" to "check" so installation fails if service creation fails -->
     <CustomAction Id="InstallService" 
                   Directory="INSTALLFOLDER" 
                   ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]install-service.cmd&quot; &quot;[INSTALLFOLDER]&quot;"
                   Execute="deferred"
                   Impersonate="no"
-                  Return="ignore" />
+                  Return="check" />
 
     <CustomAction Id="UninstallService"
                   Directory="INSTALLFOLDER"
@@ -95,7 +95,7 @@
     <!-- Firewall rules -->
     <CustomAction Id="AddFirewallRule" 
                   Directory="INSTALLFOLDER" 
-                  ExeCommand="netsh advfirewall firewall add rule name=&quot;MSI Remote Agent&quot; dir=in action=allow program=&quot;[INSTALLFOLDER]msi-agent.exe&quot; enable=yes"
+                  ExeCommand="netsh advfirewall firewall add rule name=&quot;MSI Remote Agent&quot; dir=in action=allow program=&quot;[INSTALLFOLDER]agent.exe&quot; enable=yes"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
