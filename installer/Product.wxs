@@ -28,19 +28,22 @@
                   Checksum="yes" />
           </Component>
 
-          <!-- Added NSSM service wrapper -->
-          <Component Id="NSSMExecutable" Guid="33333333-4444-5555-6666-777777777777">
-            <File Id="NSSMExe" 
-                  Source="nssm.exe" 
-                  KeyPath="yes" 
-                  Checksum="yes" />
-          </Component>
+          <!-- Removed NSSM component - using native Windows Service instead -->
 
           <!-- Configuration file -->
           <Component Id="ConfigFile" Guid="11111111-2222-3333-4444-555555555555">
             <File Id="ConfigJson" 
                   Source="..\installer\config.json" 
                   KeyPath="yes" />
+          </Component>
+
+          <!-- Added service installer script -->
+          <Component Id="ServiceInstaller" Guid="99999999-8888-7777-6666-555555555555">
+            <File Id="InstallServiceCmd" 
+                  Source="install-service.cmd" 
+                  KeyPath="yes" />
+            <File Id="UninstallServiceCmd" 
+                  Source="uninstall-service.cmd" />
           </Component>
         </Directory>
       </Directory>
@@ -69,22 +72,22 @@
     <!-- Features to install -->
     <Feature Id="ProductFeature" Title="MSI Remote Agent" Level="1">
       <ComponentRef Id="AgentExecutable" />
-      <ComponentRef Id="NSSMExecutable" />
       <ComponentRef Id="ConfigFile" />
+      <ComponentRef Id="ServiceInstaller" />
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
 
-    <!-- Updated custom actions to use NSSM for service installation -->
+    <!-- Updated custom actions to use native Windows Service (sc.exe) instead of NSSM -->
     <CustomAction Id="InstallService" 
                   Directory="INSTALLFOLDER" 
-                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]nssm.exe&quot; install MSIRemoteAgent &quot;[INSTALLFOLDER]msi-agent.exe&quot; &amp;&amp; &quot;[INSTALLFOLDER]nssm.exe&quot; set MSIRemoteAgent AppDirectory &quot;[INSTALLFOLDER]&quot; &amp;&amp; &quot;[INSTALLFOLDER]nssm.exe&quot; set MSIRemoteAgent DisplayName &quot;MSI Remote Agent&quot; &amp;&amp; &quot;[INSTALLFOLDER]nssm.exe&quot; set MSIRemoteAgent Description &quot;Remote monitoring and control agent for MSI system&quot; &amp;&amp; &quot;[INSTALLFOLDER]nssm.exe&quot; set MSIRemoteAgent Start SERVICE_AUTO_START &amp;&amp; &quot;[INSTALLFOLDER]nssm.exe&quot; set MSIRemoteAgent AppStdout &quot;[INSTALLFOLDER]agent.log&quot; &amp;&amp; &quot;[INSTALLFOLDER]nssm.exe&quot; set MSIRemoteAgent AppStderr &quot;[INSTALLFOLDER]agent-error.log&quot; &amp;&amp; &quot;[INSTALLFOLDER]nssm.exe&quot; start MSIRemoteAgent"
+                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]install-service.cmd&quot; &quot;[INSTALLFOLDER]&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
 
     <CustomAction Id="UninstallService"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]nssm.exe&quot; stop MSIRemoteAgent &amp;&amp; &quot;[INSTALLFOLDER]nssm.exe&quot; remove MSIRemoteAgent confirm"
+                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]uninstall-service.cmd&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
