@@ -1,7 +1,10 @@
-const { execSync } = require("child_process")
-const fs = require("fs")
-const path = require("path")
-const https = require("https")
+import { execSync } from "child_process"
+import fs from "fs"
+import path from "path"
+import { fileURLToPath } from "url"
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 console.log("Building MSI Installer...\n")
 
@@ -50,29 +53,7 @@ if (!fs.existsSync(nssmPath)) {
     console.log("Downloading NSSM from:", NSSM_URL)
     const file = fs.createWriteStream(zipPath)
 
-    await new Promise((resolve, reject) => {
-      https
-        .get(NSSM_URL, (response) => {
-          if (response.statusCode === 302 || response.statusCode === 301) {
-            https
-              .get(response.headers.location, (redirectResponse) => {
-                redirectResponse.pipe(file)
-                file.on("finish", () => {
-                  file.close()
-                  resolve()
-                })
-              })
-              .on("error", reject)
-          } else {
-            response.pipe(file)
-            file.on("finish", () => {
-              file.close()
-              resolve()
-            })
-          }
-        })
-        .on("error", reject)
-    })
+    execSync(`(New-Object Net.WebClient).DownloadFile("${NSSM_URL}", "${zipPath}")`, { stdio: "inherit" })
 
     const zipSize = fs.statSync(zipPath).size
     console.log(`✓ Downloaded NSSM ZIP (${(zipSize / 1024).toFixed(2)} KB)`)

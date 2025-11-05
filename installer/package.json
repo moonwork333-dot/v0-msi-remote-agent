@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "MSI installer builder for MSI Remote Agent",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "node build-msi.js"
   },
