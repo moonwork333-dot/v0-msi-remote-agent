@@ -31,7 +31,7 @@
           <!-- Added NSSM service wrapper -->
           <Component Id="NSSMExecutable" Guid="33333333-4444-5555-6666-777777777777">
             <File Id="NSSMExe" 
-                  Source="..\installer\nssm.exe" 
+                  Source="nssm.exe" 
                   KeyPath="yes" 
                   Checksum="yes" />
           </Component>
