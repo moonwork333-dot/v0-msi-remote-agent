@@ -10,6 +10,7 @@
     <Package InstallerVersion="200" 
              Compressed="yes" 
              InstallScope="perMachine" 
+             InstallPrivileges="elevated"
              Description="MSI Remote Agent Service"
              Comments="Remote monitoring and control agent" />
 
