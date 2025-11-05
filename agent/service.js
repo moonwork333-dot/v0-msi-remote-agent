@@ -6,8 +6,21 @@ const path = require("path")
 const screenshot = require("screenshot-desktop")
 const robot = require("robotjs")
 
+const configPath = path.join(__dirname, "config.json")
+let SERVER_URL_FROM_CONFIG = "ws://localhost:8080"
+
+try {
+  const fsSync = require("fs")
+  if (fsSync.existsSync(configPath)) {
+    const config = JSON.parse(fsSync.readFileSync(configPath, "utf8"))
+    SERVER_URL_FROM_CONFIG = config.serverUrl || SERVER_URL_FROM_CONFIG
+  }
+} catch (error) {
+  console.error("[Agent] Failed to load config:", error.message)
+}
+
 // Configuration
-const SERVER_URL = process.env.SERVER_URL || "ws://localhost:8080"
+const SERVER_URL = process.env.SERVER_URL || SERVER_URL_FROM_CONFIG
 const HEARTBEAT_INTERVAL = 30000 // 30 seconds
 const RECONNECT_INTERVAL = 5000 // 5 seconds
 

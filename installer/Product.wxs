@@ -21,33 +21,12 @@
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER" Name="MSI Remote Agent">
+          <!-- Removed ServiceInstall and ServiceControl, using CustomAction instead -->
           <Component Id="AgentExecutable" Guid="87654321-4321-4321-4321-210987654321">
             <File Id="AgentExe" 
                   Source="..\agent\dist\msi-agent.exe" 
                   KeyPath="yes" 
                   Checksum="yes" />
-            
-            <!-- Create Windows Service -->
-            <ServiceInstall Id="AgentService"
-                          Type="ownProcess"
-                          Name="MSIRemoteAgent"
-                          DisplayName="MSI Remote Agent"
-                          Description="Remote monitoring and control agent for MSI system"
-                          Start="auto"
-                          Account="LocalSystem"
-                          ErrorControl="normal"
-                          Arguments="--service">
-              <ServiceConfig DelayedAutoStart="yes" 
-                           OnInstall="yes" 
-                           OnReinstall="yes" />
-            </ServiceInstall>
-            
-            <ServiceControl Id="StartAgentService"
-                          Start="install"
-                          Stop="both"
-                          Remove="uninstall"
-                          Name="MSIRemoteAgent"
-                          Wait="yes" />
           </Component>
 
           <!-- Configuration file -->
@@ -87,6 +66,21 @@
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
 
+    <!-- Custom actions to install/uninstall Windows Service using sc command -->
+    <CustomAction Id="InstallService" 
+                  Directory="INSTALLFOLDER" 
+                  ExeCommand="cmd.exe /c sc create MSIRemoteAgent binPath= &quot;[INSTALLFOLDER]msi-agent.exe&quot; start= auto DisplayName= &quot;MSI Remote Agent&quot; &amp;&amp; sc description MSIRemoteAgent &quot;Remote monitoring and control agent for MSI system&quot; &amp;&amp; sc start MSIRemoteAgent"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <CustomAction Id="UninstallService"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c sc stop MSIRemoteAgent &amp;&amp; sc delete MSIRemoteAgent"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
     <!-- Firewall rules -->
     <CustomAction Id="AddFirewallRule" 
                   Directory="INSTALLFOLDER" 
@@ -102,9 +96,12 @@
                   Impersonate="no"
                   Return="ignore" />
 
+    <!-- Updated install sequence to use custom actions for service installation -->
     <InstallExecuteSequence>
-      <Custom Action="AddFirewallRule" After="InstallFiles">NOT Installed</Custom>
-      <Custom Action="RemoveFirewallRule" Before="RemoveFiles">Installed AND NOT REINSTALL</Custom>
+      <Custom Action="InstallService" After="InstallFiles">NOT Installed</Custom>
+      <Custom Action="AddFirewallRule" After="InstallService">NOT Installed</Custom>
+      <Custom Action="UninstallService" Before="RemoveFiles">Installed AND NOT REINSTALL</Custom>
+      <Custom Action="RemoveFirewallRule" Before="UninstallService">Installed AND NOT REINSTALL</Custom>
     </InstallExecuteSequence>
 
     <!-- UI -->
