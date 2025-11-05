@@ -11,7 +11,7 @@
   },
   "bin": "service.js",
   "pkg": {
-    "assets": ["node_modules/**/*"],
+    "assets": ["config.json", "node_modules/screenshot-desktop/**/*", "node_modules/robotjs/**/*"],
     "outputPath": "dist"
   },
   "dependencies": {

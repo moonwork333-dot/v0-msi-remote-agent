@@ -3,20 +3,44 @@ const os = require("os")
 const { exec } = require("child_process")
 const fs = require("fs").promises
 const path = require("path")
-const screenshot = require("screenshot-desktop")
-const robot = require("robotjs")
 
-const configPath = path.join(__dirname, "config.json")
-let SERVER_URL_FROM_CONFIG = "ws://localhost:8080"
+let screenshot = null
+let robot = null
 
 try {
-  const fsSync = require("fs")
-  if (fsSync.existsSync(configPath)) {
-    const config = JSON.parse(fsSync.readFileSync(configPath, "utf8"))
-    SERVER_URL_FROM_CONFIG = config.serverUrl || SERVER_URL_FROM_CONFIG
-  }
+  screenshot = require("screenshot-desktop")
 } catch (error) {
-  console.error("[Agent] Failed to load config:", error.message)
+  console.log("[Agent] Screenshot module not available:", error.message)
+}
+
+try {
+  robot = require("robotjs")
+} catch (error) {
+  console.log("[Agent] RobotJS module not available:", error.message)
+}
+
+const configPaths = [
+  path.join(__dirname, "config.json"),
+  path.join(process.cwd(), "config.json"),
+  path.join(path.dirname(process.execPath), "config.json"),
+  "C:\\Program Files (x86)\\MSI Remote Agent\\config.json",
+]
+
+let SERVER_URL_FROM_CONFIG = "ws://localhost:8080"
+
+for (const configPath of configPaths) {
+  try {
+    const fsSync = require("fs")
+    if (fsSync.existsSync(configPath)) {
+      const config = JSON.parse(fsSync.readFileSync(configPath, "utf8"))
+      SERVER_URL_FROM_CONFIG = config.serverUrl || SERVER_URL_FROM_CONFIG
+      console.log(`[Agent] Loaded config from: ${configPath}`)
+      console.log(`[Agent] Server URL from config: ${SERVER_URL_FROM_CONFIG}`)
+      break
+    }
+  } catch (error) {
+    // Try next path
+  }
 }
 
 // Configuration
@@ -200,6 +224,15 @@ class AgentService {
   }
 
   takeScreenshot(requestId) {
+    if (!screenshot) {
+      this.sendToDashboard({
+        type: "screenshot",
+        requestId,
+        error: "Screenshot functionality not available",
+      })
+      return
+    }
+
     try {
       screenshot({ format: "png" })
         .then((img) => {
@@ -227,6 +260,15 @@ class AgentService {
   }
 
   startScreenStream(requestId, quality = 60, fps = 10) {
+    if (!screenshot) {
+      this.sendToDashboard({
+        type: "screen-stream-started",
+        requestId,
+        error: "Screen streaming not available",
+      })
+      return
+    }
+
     if (this.isStreaming) {
       this.sendToDashboard({
         type: "screen-stream-started",
@@ -293,6 +335,18 @@ class AgentService {
   }
 
   handleRemoteInput(input, requestId) {
+    if (!robot) {
+      if (requestId) {
+        this.sendToDashboard({
+          type: "remote-input-result",
+          requestId,
+          success: false,
+          error: "Remote input functionality not available",
+        })
+      }
+      return
+    }
+
     try {
       switch (input.type) {
         case "mousemove":
@@ -594,7 +648,9 @@ class AgentService {
         )
       } else if (platform === "darwin") {
         // macOS: Wake display (move mouse slightly)
-        robot.moveMouse(robot.getMousePos().x + 1, robot.getMousePos().y)
+        if (robot) {
+          robot.moveMouse(robot.getMousePos().x + 1, robot.getMousePos().y)
+        }
         this.isScreenBlank = false
         this.sendToDashboard({
           type: "blank-screen-result",
