@@ -43,7 +43,6 @@
                   Source="uninstall-service.cmd" />
           </Component>
           
-          <!-- Added README with manual installation instructions -->
           <Component Id="ReadmeFile" Guid="AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE">
             <File Id="ReadmeTxt" 
                   Source="README.txt" 
@@ -55,13 +54,17 @@
       <Directory Id="ProgramMenuFolder">
         <Directory Id="ApplicationProgramsFolder" Name="MSI Remote Agent">
           <Component Id="ApplicationShortcut" Guid="22222222-3333-4444-5555-666666666666">
-            <!-- Added shortcut to install service manually -->
+            <!-- Added elevated shortcut for service installation -->
             <Shortcut Id="InstallServiceShortcut"
-                     Name="Install Service"
-                     Target="[SystemFolder]cmd.exe"
-                     Arguments="/c &quot;cd /d &quot;[INSTALLFOLDER]&quot; &amp;&amp; install-service.cmd &quot;[INSTALLFOLDER]&quot; &amp;&amp; pause&quot;"
-                     Description="Install MSI Remote Agent Service"
+                     Name="Install Service (Run as Admin)"
+                     Target="[INSTALLFOLDER]install-service.cmd"
+                     Arguments="&quot;[INSTALLFOLDER]&quot;"
+                     Description="Install MSI Remote Agent Service - Must run as Administrator"
                      WorkingDirectory="INSTALLFOLDER" />
+            <Shortcut Id="OpenInstallFolder"
+                     Name="Open Installation Folder"
+                     Target="[INSTALLFOLDER]"
+                     Description="Open the MSI Remote Agent installation folder" />
             <Shortcut Id="UninstallProduct"
                      Name="Uninstall MSI Remote Agent"
                      Target="[SystemFolder]msiexec.exe"
@@ -77,6 +80,24 @@
           </Component>
         </Directory>
       </Directory>
+      
+      <!-- Added desktop shortcut for easier access -->
+      <Directory Id="DesktopFolder" Name="Desktop">
+        <Component Id="DesktopShortcut" Guid="FFFFFFFF-EEEE-DDDD-CCCC-BBBBBBBBBBBB">
+          <Shortcut Id="DesktopInstallServiceShortcut"
+                   Name="Install MSI Agent Service"
+                   Target="[INSTALLFOLDER]install-service.cmd"
+                   Arguments="&quot;[INSTALLFOLDER]&quot;"
+                   Description="Install MSI Remote Agent Service - Right-click and Run as Administrator"
+                   WorkingDirectory="INSTALLFOLDER" />
+          <RegistryValue Root="HKCU" 
+                        Key="Software\MSIRemoteAgent" 
+                        Name="desktop_shortcut" 
+                        Type="integer" 
+                        Value="1" 
+                        KeyPath="yes"/>
+        </Component>
+      </Directory>
     </Directory>
 
     <Feature Id="ProductFeature" Title="MSI Remote Agent" Level="1">
@@ -85,6 +106,8 @@
       <ComponentRef Id="ServiceInstaller" />
       <ComponentRef Id="ReadmeFile" />
       <ComponentRef Id="ApplicationShortcut" />
+      <!-- Added desktop shortcut to feature -->
+      <ComponentRef Id="DesktopShortcut" />
     </Feature>
 
     <!-- UI -->
