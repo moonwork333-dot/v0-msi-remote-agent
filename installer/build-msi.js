@@ -51,9 +51,9 @@ if (!fs.existsSync(nssmPath)) {
   try {
     // Download NSSM ZIP
     console.log("Downloading NSSM from:", NSSM_URL)
-    const file = fs.createWriteStream(zipPath)
-
-    execSync(`(New-Object Net.WebClient).DownloadFile("${NSSM_URL}", "${zipPath}")`, { stdio: "inherit" })
+    execSync(`powershell -Command "(New-Object Net.WebClient).DownloadFile('${NSSM_URL}', '${zipPath}')"`, {
+      stdio: "inherit",
+    })
 
     const zipSize = fs.statSync(zipPath).size
     console.log(`✓ Downloaded NSSM ZIP (${(zipSize / 1024).toFixed(2)} KB)`)
