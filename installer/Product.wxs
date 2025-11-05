@@ -78,10 +78,10 @@
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
 
-    <!-- Changed Return from "ignore" to "check" so installation fails if service creation fails -->
+    <!-- Simplified custom action to run install-service.cmd with proper quoting -->
     <CustomAction Id="InstallService" 
                   Directory="INSTALLFOLDER" 
-                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]install-service.cmd&quot; &quot;[INSTALLFOLDER]&quot;"
+                  ExeCommand="[SystemFolder]cmd.exe /c &quot;install-service.cmd&quot; &quot;[INSTALLFOLDER]&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="check" />
