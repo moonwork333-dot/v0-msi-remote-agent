@@ -1,6 +1,7 @@
 const { execSync } = require("child_process")
 const fs = require("fs")
 const path = require("path")
+const https = require("https")
 
 console.log("Building MSI Installer...\n")
 
@@ -33,6 +34,83 @@ if (!fs.existsSync(exePath)) {
   process.exit(1)
 }
 console.log("✓ Agent executable verified\n")
+
+// Step 3.5: Download NSSM if not present
+const nssmPath = path.join(__dirname, "nssm.exe")
+if (!fs.existsSync(nssmPath)) {
+  console.log("Step 3.5: Downloading NSSM...")
+  console.log("========================================")
+
+  const NSSM_URL = "https://nssm.cc/release/nssm-2.24.zip"
+  const zipPath = path.join(__dirname, "nssm.zip")
+  const extractDir = path.join(__dirname, "nssm-temp")
+
+  try {
+    // Download NSSM ZIP
+    console.log("Downloading NSSM from:", NSSM_URL)
+    const file = fs.createWriteStream(zipPath)
+
+    await new Promise((resolve, reject) => {
+      https
+        .get(NSSM_URL, (response) => {
+          if (response.statusCode === 302 || response.statusCode === 301) {
+            https
+              .get(response.headers.location, (redirectResponse) => {
+                redirectResponse.pipe(file)
+                file.on("finish", () => {
+                  file.close()
+                  resolve()
+                })
+              })
+              .on("error", reject)
+          } else {
+            response.pipe(file)
+            file.on("finish", () => {
+              file.close()
+              resolve()
+            })
+          }
+        })
+        .on("error", reject)
+    })
+
+    const zipSize = fs.statSync(zipPath).size
+    console.log(`✓ Downloaded NSSM ZIP (${(zipSize / 1024).toFixed(2)} KB)`)
+
+    // Extract using PowerShell
+    console.log("Extracting NSSM...")
+    execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, {
+      stdio: "inherit",
+    })
+    console.log("✓ Extracted NSSM ZIP")
+
+    // Copy 64-bit NSSM
+    const nssmSource = path.join(extractDir, "nssm-2.24", "win64", "nssm.exe")
+    if (!fs.existsSync(nssmSource)) {
+      throw new Error("64-bit NSSM not found in extracted files")
+    }
+
+    fs.copyFileSync(nssmSource, nssmPath)
+    const nssmSize = fs.statSync(nssmPath).size
+    console.log(`✓ Copied 64-bit NSSM (${(nssmSize / 1024).toFixed(2)} KB)`)
+
+    // Cleanup
+    fs.unlinkSync(zipPath)
+    fs.rmSync(extractDir, { recursive: true, force: true })
+    console.log("✓ Cleaned up temporary files")
+
+    console.log("========================================")
+    console.log("✓ NSSM downloaded successfully\n")
+  } catch (error) {
+    console.error("✗ Failed to download NSSM:", error.message)
+    // Cleanup on error
+    if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath)
+    if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true })
+    process.exit(1)
+  }
+} else {
+  console.log("Step 3.5: NSSM already present, skipping download\n")
+}
 
 // Step 4: Compile WiX source
 console.log("Step 4: Compiling WiX source...")
