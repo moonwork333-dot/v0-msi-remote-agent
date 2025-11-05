@@ -1,22 +1,49 @@
 const WebSocket = require("ws")
 const os = require("os")
 const { exec } = require("child_process")
-const fs = require("fs").promises
+const fs = require("fs")
+const fsPromises = require("fs").promises
 const path = require("path")
+
+const LOG_FILE = path.join(path.dirname(process.execPath), "agent.log")
+
+function log(message) {
+  const timestamp = new Date().toISOString()
+  const logMessage = `[${timestamp}] ${message}\n`
+
+  // Write to console
+  console.log(message)
+
+  // Write to file synchronously to ensure it's written even if process crashes
+  try {
+    fs.appendFileSync(LOG_FILE, logMessage)
+  } catch (error) {
+    console.error("Failed to write to log file:", error)
+  }
+}
+
+// Log startup immediately
+log("=== MSI Remote Agent Starting ===")
+log(`Process ID: ${process.pid}`)
+log(`Executable path: ${process.execPath}`)
+log(`Working directory: ${process.cwd()}`)
+log(`Log file: ${LOG_FILE}`)
 
 let screenshot = null
 let robot = null
 
 try {
   screenshot = require("screenshot-desktop")
+  log("[Agent] Screenshot module loaded successfully")
 } catch (error) {
-  console.log("[Agent] Screenshot module not available:", error.message)
+  log("[Agent] Screenshot module not available: " + error.message)
 }
 
 try {
   robot = require("robotjs")
+  log("[Agent] RobotJS module loaded successfully")
 } catch (error) {
-  console.log("[Agent] RobotJS module not available:", error.message)
+  log("[Agent] RobotJS module not available: " + error.message)
 }
 
 const configPaths = [
@@ -28,18 +55,19 @@ const configPaths = [
 
 let SERVER_URL_FROM_CONFIG = "ws://localhost:8080"
 
+log("[Agent] Searching for config.json in:")
 for (const configPath of configPaths) {
+  log(`  - ${configPath}`)
   try {
-    const fsSync = require("fs")
-    if (fsSync.existsSync(configPath)) {
-      const config = JSON.parse(fsSync.readFileSync(configPath, "utf8"))
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, "utf8"))
       SERVER_URL_FROM_CONFIG = config.serverUrl || SERVER_URL_FROM_CONFIG
-      console.log(`[Agent] Loaded config from: ${configPath}`)
-      console.log(`[Agent] Server URL from config: ${SERVER_URL_FROM_CONFIG}`)
+      log(`[Agent] ✓ Loaded config from: ${configPath}`)
+      log(`[Agent] Server URL from config: ${SERVER_URL_FROM_CONFIG}`)
       break
     }
   } catch (error) {
-    // Try next path
+    log(`[Agent] Failed to load config from ${configPath}: ${error.message}`)
   }
 }
 
@@ -48,10 +76,12 @@ const SERVER_URL = process.env.SERVER_URL || SERVER_URL_FROM_CONFIG
 const HEARTBEAT_INTERVAL = 30000 // 30 seconds
 const RECONNECT_INTERVAL = 5000 // 5 seconds
 
+log(`[Agent] Final Server URL: ${SERVER_URL}`)
+
 class AgentService {
   constructor() {
     this.ws = null
-    this.agentId = os.hostname() // Consistent hostname-based ID
+    this.agentId = os.hostname()
     this.reconnectTimer = null
     this.heartbeatTimer = null
     this.isConnected = false
@@ -62,19 +92,19 @@ class AgentService {
   }
 
   start() {
-    console.log("[Agent] Starting MSI Remote Agent Service...")
-    console.log(`[Agent] Agent ID: ${this.agentId}`)
-    console.log(`[Agent] Server URL: ${SERVER_URL}`)
+    log("[Agent] Starting MSI Remote Agent Service...")
+    log(`[Agent] Agent ID: ${this.agentId}`)
+    log(`[Agent] Server URL: ${SERVER_URL}`)
     this.connect()
   }
 
   connect() {
     try {
-      console.log("[Agent] Connecting to server...")
+      log("[Agent] Connecting to server...")
       this.ws = new WebSocket(SERVER_URL)
 
       this.ws.on("open", () => {
-        console.log("[Agent] Connected to server")
+        log("[Agent] Connected to server")
         this.isConnected = true
         this.register()
         this.startHeartbeat()
@@ -85,17 +115,18 @@ class AgentService {
       })
 
       this.ws.on("close", () => {
-        console.log("[Agent] Disconnected from server")
+        log("[Agent] Disconnected from server")
         this.isConnected = false
         this.stopHeartbeat()
         this.scheduleReconnect()
       })
 
       this.ws.on("error", (error) => {
-        console.error("[Agent] WebSocket error:", error.message)
+        log("[Agent] WebSocket error: " + error.message)
       })
     } catch (error) {
-      console.error("[Agent] Connection error:", error)
+      log("[Agent] Connection error: " + error.message)
+      log("[Agent] Stack: " + error.stack)
       this.scheduleReconnect()
     }
   }
@@ -114,7 +145,7 @@ class AgentService {
     }
 
     this.send(registrationData)
-    console.log("[Agent] Registration sent")
+    log("[Agent] Registration sent")
   }
 
   startHeartbeat() {
@@ -137,7 +168,7 @@ class AgentService {
       clearTimeout(this.reconnectTimer)
     }
 
-    console.log(`[Agent] Reconnecting in ${RECONNECT_INTERVAL / 1000} seconds...`)
+    log(`[Agent] Reconnecting in ${RECONNECT_INTERVAL / 1000} seconds...`)
     this.reconnectTimer = setTimeout(() => {
       this.connect()
     }, RECONNECT_INTERVAL)
@@ -149,7 +180,7 @@ class AgentService {
 
       switch (message.type) {
         case "registered":
-          console.log("[Agent] Registration confirmed")
+          log("[Agent] Registration confirmed")
           break
 
         case "heartbeat-ack":
@@ -201,15 +232,15 @@ class AgentService {
           break
 
         default:
-          console.log("[Agent] Unknown message type:", message.type)
+          log("[Agent] Unknown message type: " + message.type)
       }
     } catch (error) {
-      console.error("[Agent] Error handling message:", error)
+      log("[Agent] Error handling message: " + error.message)
     }
   }
 
   executeCommand(command, requestId) {
-    console.log(`[Agent] Executing command: ${command}`)
+    log(`[Agent] Executing command: ${command}`)
 
     exec(command, { timeout: 30000 }, (error, stdout, stderr) => {
       this.sendToDashboard({
@@ -281,7 +312,7 @@ class AgentService {
     try {
       const frameInterval = 1000 / fps
 
-      console.log(`[Agent] Starting screen stream at ${fps} FPS, quality ${quality}`)
+      log(`[Agent] Starting screen stream at ${fps} FPS, quality ${quality}`)
 
       this.isStreaming = true
       this.sendToDashboard({
@@ -304,7 +335,7 @@ class AgentService {
             }
           })
           .catch((error) => {
-            console.error("[Agent] Screen capture error:", error)
+            log("[Agent] Screen capture error: " + error.message)
           })
       }, frameInterval)
     } catch (error) {
@@ -318,7 +349,7 @@ class AgentService {
   }
 
   stopScreenStream(requestId) {
-    console.log("[Agent] Stopping screen stream")
+    log("[Agent] Stopping screen stream")
 
     if (this.screenStreamInterval) {
       clearInterval(this.screenStreamInterval)
@@ -390,7 +421,7 @@ class AgentService {
           break
 
         default:
-          console.log("[Agent] Unknown input type:", input.type)
+          log("[Agent] Unknown input type: " + input.type)
       }
 
       if (requestId) {
@@ -401,7 +432,7 @@ class AgentService {
         })
       }
     } catch (error) {
-      console.error("[Agent] Remote input error:", error)
+      log("[Agent] Remote input error: " + error.message)
       if (requestId) {
         this.sendToDashboard({
           type: "remote-input-result",
@@ -416,14 +447,14 @@ class AgentService {
   async listFiles(directory, requestId) {
     try {
       const dirPath = directory || (os.platform() === "win32" ? "C:\\" : "/")
-      console.log(`[Agent] Listing files in: ${dirPath}`)
+      log(`[Agent] Listing files in: ${dirPath}`)
 
-      const files = await fs.readdir(dirPath, { withFileTypes: true })
+      const files = await fsPromises.readdir(dirPath, { withFileTypes: true })
       const fileList = await Promise.all(
         files.map(async (file) => {
           try {
             const filePath = path.join(dirPath, file.name)
-            const stats = await fs.stat(filePath)
+            const stats = await fsPromises.stat(filePath)
             return {
               name: file.name,
               isDirectory: file.isDirectory(),
@@ -458,8 +489,8 @@ class AgentService {
 
   async readFile(filePath, requestId) {
     try {
-      console.log(`[Agent] Reading file: ${filePath}`)
-      const content = await fs.readFile(filePath, "utf8")
+      log(`[Agent] Reading file: ${filePath}`)
+      const content = await fsPromises.readFile(filePath, "utf8")
 
       this.sendToDashboard({
         type: "file-content",
@@ -478,8 +509,8 @@ class AgentService {
 
   async writeFile(filePath, content, requestId) {
     try {
-      console.log(`[Agent] Writing file: ${filePath}`)
-      await fs.writeFile(filePath, content, "utf8")
+      log(`[Agent] Writing file: ${filePath}`)
+      await fsPromises.writeFile(filePath, content, "utf8")
 
       this.sendToDashboard({
         type: "file-written",
@@ -499,13 +530,13 @@ class AgentService {
 
   async deleteFile(filePath, requestId) {
     try {
-      console.log(`[Agent] Deleting: ${filePath}`)
-      const stats = await fs.stat(filePath)
+      log(`[Agent] Deleting: ${filePath}`)
+      const stats = await fsPromises.stat(filePath)
 
       if (stats.isDirectory()) {
-        await fs.rmdir(filePath, { recursive: true })
+        await fsPromises.rmdir(filePath, { recursive: true })
       } else {
-        await fs.unlink(filePath)
+        await fsPromises.unlink(filePath)
       }
 
       this.sendToDashboard({
@@ -545,7 +576,7 @@ class AgentService {
   }
 
   blankScreen(enabled, requestId) {
-    console.log(`[Agent] Blank screen ${enabled ? "enabled" : "disabled"}`)
+    log(`[Agent] Blank screen ${enabled ? "enabled" : "disabled"}`)
 
     if (enabled && !this.isScreenBlank) {
       // Turn off display using platform-specific commands
@@ -557,7 +588,7 @@ class AgentService {
           'powershell (Add-Type "[DllImport(\\"user32.dll\\")]public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);" -Name a -Pas)::SendMessage(-1,0x0112,0xF170,2)',
           (error) => {
             if (error) {
-              console.error("[Agent] Blank screen error:", error)
+              log("[Agent] Blank screen error: " + error.message)
               this.sendToDashboard({
                 type: "blank-screen-result",
                 requestId,
@@ -579,7 +610,7 @@ class AgentService {
         // macOS: Turn off display
         exec("pmset displaysleepnow", (error) => {
           if (error) {
-            console.error("[Agent] Blank screen error:", error)
+            log("[Agent] Blank screen error: " + error.message)
             this.sendToDashboard({
               type: "blank-screen-result",
               requestId,
@@ -600,7 +631,7 @@ class AgentService {
         // Linux: Turn off display using xset
         exec("xset dpms force off", (error) => {
           if (error) {
-            console.error("[Agent] Blank screen error:", error)
+            log("[Agent] Blank screen error: " + error.message)
             this.sendToDashboard({
               type: "blank-screen-result",
               requestId,
@@ -635,7 +666,7 @@ class AgentService {
           'powershell (Add-Type "[DllImport(\\"user32.dll\\")]public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);" -Name a -Pas)::SendMessage(-1,0x0112,0xF170,-1)',
           (error) => {
             if (error) {
-              console.error("[Agent] Unblank screen error:", error)
+              log("[Agent] Unblank screen error: " + error.message)
             }
             this.isScreenBlank = false
             this.sendToDashboard({
@@ -662,7 +693,7 @@ class AgentService {
         // Linux: Turn on display
         exec("xset dpms force on", (error) => {
           if (error) {
-            console.error("[Agent] Unblank screen error:", error)
+            log("[Agent] Unblank screen error: " + error.message)
           }
           this.isScreenBlank = false
           this.sendToDashboard({
@@ -697,7 +728,7 @@ class AgentService {
   }
 
   stop() {
-    console.log("[Agent] Stopping agent service...")
+    log("[Agent] Stopping agent service...")
     this.stopScreenStream()
     this.stopHeartbeat()
     if (this.reconnectTimer) {
@@ -709,36 +740,42 @@ class AgentService {
   }
 }
 
-// Start the agent
-const agent = new AgentService()
-agent.start()
+try {
+  log("[Agent] Initializing agent service...")
+  const agent = new AgentService()
+  agent.start()
+  log("[Agent] Agent service started successfully")
 
-// Keep the process alive even if there are no active timers
-const keepAliveInterval = setInterval(() => {
-  // This ensures the Node.js event loop stays active
-}, 60000) // Check every minute
+  // Keep the process alive
+  const keepAliveInterval = setInterval(() => {
+    // This ensures the Node.js event loop stays active
+  }, 60000)
 
-process.on("uncaughtException", (error) => {
-  console.error("[Agent] Uncaught exception:", error)
-  // Don't exit, just log the error
-})
+  process.on("uncaughtException", (error) => {
+    log("[Agent] Uncaught exception: " + error.message)
+    log("[Agent] Stack: " + error.stack)
+  })
 
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("[Agent] Unhandled rejection at:", promise, "reason:", reason)
-  // Don't exit, just log the error
-})
+  process.on("unhandledRejection", (reason, promise) => {
+    log("[Agent] Unhandled rejection: " + reason)
+  })
 
-// Graceful shutdown
-process.on("SIGINT", () => {
-  console.log("\n[Agent] Shutting down...")
-  clearInterval(keepAliveInterval)
-  agent.stop()
-  process.exit(0)
-})
+  // Graceful shutdown
+  process.on("SIGINT", () => {
+    log("[Agent] Received SIGINT, shutting down...")
+    clearInterval(keepAliveInterval)
+    agent.stop()
+    process.exit(0)
+  })
 
-process.on("SIGTERM", () => {
-  console.log("\n[Agent] Shutting down...")
-  clearInterval(keepAliveInterval)
-  agent.stop()
-  process.exit(0)
-})
+  process.on("SIGTERM", () => {
+    log("[Agent] Received SIGTERM, shutting down...")
+    clearInterval(keepAliveInterval)
+    agent.stop()
+    process.exit(0)
+  })
+} catch (error) {
+  log("[Agent] FATAL ERROR during startup: " + error.message)
+  log("[Agent] Stack: " + error.stack)
+  process.exit(1)
+}
