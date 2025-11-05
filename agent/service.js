@@ -657,15 +657,32 @@ class AgentService {
 const agent = new AgentService()
 agent.start()
 
+// Keep the process alive even if there are no active timers
+const keepAliveInterval = setInterval(() => {
+  // This ensures the Node.js event loop stays active
+}, 60000) // Check every minute
+
+process.on("uncaughtException", (error) => {
+  console.error("[Agent] Uncaught exception:", error)
+  // Don't exit, just log the error
+})
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[Agent] Unhandled rejection at:", promise, "reason:", reason)
+  // Don't exit, just log the error
+})
+
 // Graceful shutdown
 process.on("SIGINT", () => {
   console.log("\n[Agent] Shutting down...")
+  clearInterval(keepAliveInterval)
   agent.stop()
   process.exit(0)
 })
 
 process.on("SIGTERM", () => {
   console.log("\n[Agent] Shutting down...")
+  clearInterval(keepAliveInterval)
   agent.stop()
   process.exit(0)
 })

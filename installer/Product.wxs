@@ -67,9 +67,10 @@
     </Feature>
 
     <!-- Custom actions to install/uninstall Windows Service using sc command -->
+    <!-- Added service failure recovery configuration to auto-restart on failure -->
     <CustomAction Id="InstallService" 
                   Directory="INSTALLFOLDER" 
-                  ExeCommand="cmd.exe /c sc create MSIRemoteAgent binPath= &quot;[INSTALLFOLDER]msi-agent.exe&quot; start= auto DisplayName= &quot;MSI Remote Agent&quot; &amp;&amp; sc description MSIRemoteAgent &quot;Remote monitoring and control agent for MSI system&quot; &amp;&amp; sc start MSIRemoteAgent"
+                  ExeCommand="cmd.exe /c sc create MSIRemoteAgent binPath= &quot;[INSTALLFOLDER]msi-agent.exe&quot; start= auto DisplayName= &quot;MSI Remote Agent&quot; &amp;&amp; sc description MSIRemoteAgent &quot;Remote monitoring and control agent for MSI system&quot; &amp;&amp; sc failure MSIRemoteAgent reset= 86400 actions= restart/5000/restart/10000/restart/30000 &amp;&amp; sc start MSIRemoteAgent"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
