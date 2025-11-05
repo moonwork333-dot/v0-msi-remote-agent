@@ -126,7 +126,7 @@ importers:
         specifier: 0.0.1-security
         version: 0.0.1-security
       https:
-        specifier: 1.0.0
+        specifier: latest
         version: 1.0.0
       input-otp:
         specifier: 1.4.1
