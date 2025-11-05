@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node service.js",
     "dev": "node service.js",
-    "build": "pkg . --targets node18-win-x64 --output dist/msi-agent.exe",
+    "build": "pkg . --targets node18-win-x64 --output dist/agent.exe",
     "build-installer": "node build-msi.js"
   },
   "bin": "service.js",

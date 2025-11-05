@@ -31,7 +31,7 @@ try {
 }
 
 // Step 3: Verify executable exists
-const exePath = path.join(__dirname, "..", "agent", "dist", "msi-agent.exe")
+const exePath = path.join(__dirname, "..", "agent", "dist", "agent.exe")
 if (!fs.existsSync(exePath)) {
   console.error("✗ Agent executable not found at:", exePath)
   process.exit(1)
