@@ -23,8 +23,9 @@
         <Directory Id="INSTALLFOLDER" Name="MSI Remote Agent">
           <!-- Renamed the file to agent.exe for consistency -->
           <Component Id="AgentExecutable" Guid="87654321-4321-4321-4321-210987654321">
+            <!-- Updated Source to match the actual built filename -->
             <File Id="AgentExe" 
-                  Source="..\agent\dist\v0.2 agent.exe"
+                  Source="..\agent\dist\agent.exe"
                   Name="agent.exe"
                   KeyPath="yes" 
                   Checksum="yes" />
