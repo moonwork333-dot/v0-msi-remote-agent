@@ -21,9 +21,7 @@
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER" Name="MSI Remote Agent">
-          <!-- Renamed the file to agent.exe for consistency -->
           <Component Id="AgentExecutable" Guid="87654321-4321-4321-4321-210987654321">
-            <!-- Updated Source to match the actual built filename -->
             <File Id="AgentExe" 
                   Source="..\agent\dist\agent.exe"
                   Name="agent.exe"
@@ -31,14 +29,12 @@
                   Checksum="yes" />
           </Component>
 
-          <!-- Configuration file -->
           <Component Id="ConfigFile" Guid="11111111-2222-3333-4444-555555555555">
             <File Id="ConfigJson" 
                   Source="..\installer\config.json" 
                   KeyPath="yes" />
           </Component>
 
-          <!-- Added service installer script -->
           <Component Id="ServiceInstaller" Guid="99999999-8888-7777-6666-555555555555">
             <File Id="InstallServiceCmd" 
                   Source="install-service.cmd" 
@@ -46,13 +42,26 @@
             <File Id="UninstallServiceCmd" 
                   Source="uninstall-service.cmd" />
           </Component>
+          
+          <!-- Added README with manual installation instructions -->
+          <Component Id="ReadmeFile" Guid="AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE">
+            <File Id="ReadmeTxt" 
+                  Source="README.txt" 
+                  KeyPath="yes" />
+          </Component>
         </Directory>
       </Directory>
 
-      <!-- Start Menu shortcut -->
       <Directory Id="ProgramMenuFolder">
         <Directory Id="ApplicationProgramsFolder" Name="MSI Remote Agent">
           <Component Id="ApplicationShortcut" Guid="22222222-3333-4444-5555-666666666666">
+            <!-- Added shortcut to install service manually -->
+            <Shortcut Id="InstallServiceShortcut"
+                     Name="Install Service"
+                     Target="[SystemFolder]cmd.exe"
+                     Arguments="/c &quot;cd /d &quot;[INSTALLFOLDER]&quot; &amp;&amp; install-service.cmd &quot;[INSTALLFOLDER]&quot; &amp;&amp; pause&quot;"
+                     Description="Install MSI Remote Agent Service"
+                     WorkingDirectory="INSTALLFOLDER" />
             <Shortcut Id="UninstallProduct"
                      Name="Uninstall MSI Remote Agent"
                      Target="[SystemFolder]msiexec.exe"
@@ -70,51 +79,13 @@
       </Directory>
     </Directory>
 
-    <!-- Features to install -->
     <Feature Id="ProductFeature" Title="MSI Remote Agent" Level="1">
       <ComponentRef Id="AgentExecutable" />
       <ComponentRef Id="ConfigFile" />
       <ComponentRef Id="ServiceInstaller" />
+      <ComponentRef Id="ReadmeFile" />
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
-
-    <!-- Simplified custom action to run install-service.cmd with proper quoting -->
-    <CustomAction Id="InstallService" 
-                  Directory="INSTALLFOLDER" 
-                  ExeCommand="[SystemFolder]cmd.exe /c &quot;install-service.cmd&quot; &quot;[INSTALLFOLDER]&quot;"
-                  Execute="deferred"
-                  Impersonate="no"
-                  Return="check" />
-
-    <CustomAction Id="UninstallService"
-                  Directory="INSTALLFOLDER"
-                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]uninstall-service.cmd&quot;"
-                  Execute="deferred"
-                  Impersonate="no"
-                  Return="ignore" />
-
-    <!-- Firewall rules -->
-    <CustomAction Id="AddFirewallRule" 
-                  Directory="INSTALLFOLDER" 
-                  ExeCommand="netsh advfirewall firewall add rule name=&quot;MSI Remote Agent&quot; dir=in action=allow program=&quot;[INSTALLFOLDER]agent.exe&quot; enable=yes"
-                  Execute="deferred"
-                  Impersonate="no"
-                  Return="ignore" />
-
-    <CustomAction Id="RemoveFirewallRule"
-                  Directory="INSTALLFOLDER"
-                  ExeCommand="netsh advfirewall firewall delete rule name=&quot;MSI Remote Agent&quot;"
-                  Execute="deferred"
-                  Impersonate="no"
-                  Return="ignore" />
-
-    <!-- Install sequence -->
-    <InstallExecuteSequence>
-      <Custom Action="InstallService" After="InstallFiles">NOT Installed</Custom>
-      <Custom Action="AddFirewallRule" After="InstallService">NOT Installed</Custom>
-      <Custom Action="UninstallService" Before="RemoveFiles">Installed AND NOT REINSTALL</Custom>
-      <Custom Action="RemoveFirewallRule" Before="UninstallService">Installed AND NOT REINSTALL</Custom>
-    </InstallExecuteSequence>
 
     <!-- UI -->
     <UIRef Id="WixUI_Minimal" />
