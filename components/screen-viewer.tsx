@@ -13,9 +13,10 @@ interface ScreenViewerProps {
   hostname: string
   onClose: () => void
   sendMessage: (message: any) => void
+  addMessageListener: (listener: (message: any) => void) => () => void
 }
 
-export function ScreenViewer({ agentId, hostname, onClose, sendMessage }: ScreenViewerProps) {
+export function ScreenViewer({ agentId, hostname, onClose, sendMessage, addMessageListener }: ScreenViewerProps) {
   const [isStreaming, setIsStreaming] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [fps, setFps] = useState(0)
@@ -31,6 +32,7 @@ export function ScreenViewer({ agentId, hostname, onClose, sendMessage }: Screen
   // Start screen stream
   const startStream = useCallback(() => {
     const requestId = `stream-${Date.now()}`
+    console.log("[v0] Starting screen stream for agent:", agentId)
     sendMessage({
       type: "to-agent",
       agentId,
@@ -47,6 +49,7 @@ export function ScreenViewer({ agentId, hostname, onClose, sendMessage }: Screen
   // Stop screen stream
   const stopStream = useCallback(() => {
     const requestId = `stream-stop-${Date.now()}`
+    console.log("[v0] Stopping screen stream for agent:", agentId)
     sendMessage({
       type: "to-agent",
       agentId,
@@ -58,58 +61,54 @@ export function ScreenViewer({ agentId, hostname, onClose, sendMessage }: Screen
     setIsStreaming(false)
   }, [agentId, sendMessage])
 
-  // Handle screen frames
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      try {
-        const message = JSON.parse(event.data)
+    const handleMessage = (message: any) => {
+      // Only process messages from the correct agent
+      if (message.type === "from-agent" && message.agentId === agentId) {
+        const payload = message.payload
 
-        if (message.type === "from-agent" && message.agentId === agentId) {
-          const payload = message.payload
+        if (payload.type === "screen-frame" && canvasRef.current) {
+          const canvas = canvasRef.current
+          const ctx = canvas.getContext("2d")
 
-          if (payload.type === "screen-frame" && canvasRef.current) {
-            const canvas = canvasRef.current
-            const ctx = canvas.getContext("2d")
+          if (ctx) {
+            const img = new Image()
+            img.crossOrigin = "anonymous"
+            img.onload = () => {
+              canvas.width = img.width
+              canvas.height = img.height
+              ctx.drawImage(img, 0, 0)
 
-            if (ctx) {
-              const img = new Image()
-              img.crossOrigin = "anonymous"
-              img.onload = () => {
-                canvas.width = img.width
-                canvas.height = img.height
-                ctx.drawImage(img, 0, 0)
+              // Update FPS counter
+              frameCountRef.current++
+              const now = Date.now()
+              lastFrameTimeRef.current = now
 
-                // Update FPS counter
-                frameCountRef.current++
-                const now = Date.now()
-                const timeSinceLastFrame = now - lastFrameTimeRef.current
-                lastFrameTimeRef.current = now
-
-                // Calculate latency
-                if (payload.timestamp) {
-                  setLatency(now - payload.timestamp)
-                }
+              // Calculate latency
+              if (payload.timestamp) {
+                setLatency(now - payload.timestamp)
               }
-              img.src = `data:image/jpeg;base64,${payload.frame}`
             }
+            img.onerror = (error) => {
+              console.error("[v0] Error loading screen frame:", error)
+            }
+            img.src = `data:image/jpeg;base64,${payload.frame}`
+          }
+        } else if (payload.type === "screen-stream-started") {
+          console.log("[v0] Screen stream started:", payload)
+          if (payload.error) {
+            console.error("[v0] Screen stream error:", payload.error)
           }
         }
-      } catch (error) {
-        console.error("[v0] Error handling screen frame:", error)
       }
     }
 
-    // Listen for WebSocket messages
-    if (typeof window !== "undefined") {
-      window.addEventListener("message", handleMessage)
-    }
+    const unsubscribe = addMessageListener(handleMessage)
 
     return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("message", handleMessage)
-      }
+      unsubscribe()
     }
-  }, [agentId])
+  }, [agentId, addMessageListener])
 
   // FPS counter
   useEffect(() => {

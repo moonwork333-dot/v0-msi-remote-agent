@@ -16,11 +16,21 @@ interface WebSocketMessage {
   [key: string]: any
 }
 
+type MessageListener = (message: WebSocketMessage) => void
+
 export function useWebSocket() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const messageListenersRef = useRef<Set<MessageListener>>(new Set())
+
+  const addMessageListener = useCallback((listener: MessageListener) => {
+    messageListenersRef.current.add(listener)
+    return () => {
+      messageListenersRef.current.delete(listener)
+    }
+  }, [])
 
   const connect = useCallback(() => {
     // Use environment variable or default to localhost
@@ -50,6 +60,14 @@ export function useWebSocket() {
           const message: WebSocketMessage = JSON.parse(event.data)
           console.log("[v0] Received message:", message.type)
 
+          messageListenersRef.current.forEach((listener) => {
+            try {
+              listener(message)
+            } catch (error) {
+              console.error("[v0] Error in message listener:", error)
+            }
+          })
+
           switch (message.type) {
             case "agent-list":
               setAgents(message.agents || [])
@@ -68,8 +86,8 @@ export function useWebSocket() {
               break
 
             case "from-agent":
-              console.log("[v0] Message from agent:", message.agentId, message.payload)
-              // Handle agent responses here
+              console.log("[v0] Message from agent:", message.agentId, message.payload?.type)
+              // Messages are now handled by listeners
               break
           }
         } catch (error) {
@@ -101,6 +119,7 @@ export function useWebSocket() {
 
   const sendMessage = useCallback((message: WebSocketMessage) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log("[v0] Sending message:", message.type)
       wsRef.current.send(JSON.stringify(message))
     } else {
       console.error("[v0] WebSocket is not connected")
@@ -124,5 +143,6 @@ export function useWebSocket() {
     agents,
     isConnected,
     sendMessage,
+    addMessageListener, // Export listener registration function
   }
 }

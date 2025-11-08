@@ -12,7 +12,7 @@ import { SystemControls } from "@/components/system-controls"
 import { useWebSocket } from "@/hooks/use-websocket"
 
 export default function DashboardPage() {
-  const { agents, isConnected, sendMessage } = useWebSocket()
+  const { agents, isConnected, sendMessage, addMessageListener } = useWebSocket()
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
   const [screenViewerAgent, setScreenViewerAgent] = useState<{ agentId: string; hostname: string } | null>(null)
   const [terminalAgent, setTerminalAgent] = useState<{ agentId: string; hostname: string } | null>(null)
@@ -173,6 +173,7 @@ export default function DashboardPage() {
           hostname={screenViewerAgent.hostname}
           onClose={() => setScreenViewerAgent(null)}
           sendMessage={sendMessage}
+          addMessageListener={addMessageListener} // Pass message listener registration
         />
       )}
 
