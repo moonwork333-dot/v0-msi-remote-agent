@@ -38,11 +38,17 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
     
     <Package InstallerVersion="200" 
              Compressed="yes" 
-             InstallScope="perMachine" 
+             InstallScope="perMachine"
+             InstallPrivileges="elevated"
              Description="${CONFIG.productName} Installer" />
 
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
     <MediaTemplate EmbedCab="yes" />
+
+    <!-- Add condition to require administrator privileges -->
+    <Condition Message="You must be an administrator to install this product.">
+      Privileged
+    </Condition>
 
     <Feature Id="ProductFeature" Title="${CONFIG.productName}" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
@@ -68,7 +74,8 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
           Start="auto"
           Account="LocalSystem"
           ErrorControl="normal"
-          Interactive="no" />
+          Interactive="no"
+          Vital="yes" />
         
         <ServiceControl
           Id="StartService"
