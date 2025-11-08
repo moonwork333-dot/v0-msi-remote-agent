@@ -55,9 +55,11 @@ if %ERRORLEVEL% EQU 0 (
     echo.
 )
 
-REM Create the service with proper quoting
+REM Create the service with proper quoting for paths with special characters
 echo Creating Windows Service...
-sc create "%SERVICE_NAME%" binPath= "\"%EXE_PATH%\"" start= auto
+REM Use a temporary file to avoid batch parsing issues with parentheses
+set "BINPATH=%EXE_PATH%"
+sc create "%SERVICE_NAME%" binPath= "%BINPATH%" start= auto DisplayName= "%SERVICE_NAME%"
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
