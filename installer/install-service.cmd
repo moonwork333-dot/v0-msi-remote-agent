@@ -103,18 +103,33 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
+echo Service "%SERVICE_NAME%" installed successfully!
+
 REM Configure service
 echo Configuring service...
 "%NSSM_PATH%" set "%SERVICE_NAME%" DisplayName "%SERVICE_NAME%" >nul 2>&1
 "%NSSM_PATH%" set "%SERVICE_NAME%" Description "Remote monitoring and control agent" >nul 2>&1
 "%NSSM_PATH%" set "%SERVICE_NAME%" Start SERVICE_AUTO_START >nul 2>&1
+
+REM Set the working directory so agent.exe can find node_modules and config.json
 "%NSSM_PATH%" set "%SERVICE_NAME%" AppDirectory "%INSTALL_DIR%" >nul 2>&1
+
+REM Configure stdout/stderr logging
 "%NSSM_PATH%" set "%SERVICE_NAME%" AppStdout "%INSTALL_DIR%\service-output.log" >nul 2>&1
 "%NSSM_PATH%" set "%SERVICE_NAME%" AppStderr "%INSTALL_DIR%\service-error.log" >nul 2>&1
 
-REM Configure restart on failure
+REM Important: Enable file rotation to prevent logs from growing too large
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppStdoutCreationDisposition 4 >nul 2>&1
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppStderrCreationDisposition 4 >nul 2>&1
+
+REM Configure restart on failure with more aggressive settings
 "%NSSM_PATH%" set "%SERVICE_NAME%" AppExit Default Restart >nul 2>&1
 "%NSSM_PATH%" set "%SERVICE_NAME%" AppRestartDelay 5000 >nul 2>&1
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppThrottle 1500 >nul 2>&1
+
+REM Give the service time to initialize before starting
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppStopMethodSkip 0 >nul 2>&1
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppStopMethodConsole 1500 >nul 2>&1
 
 echo.
 echo Starting service...
@@ -133,8 +148,8 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-REM Wait a moment and check service status
-timeout /t 3 /nobreak >nul
+REM Wait longer for the service to fully start
+timeout /t 5 /nobreak >nul
 sc query "%SERVICE_NAME%" | find "RUNNING" >nul 2>&1
 
 if %ERRORLEVEL% EQU 0 (
