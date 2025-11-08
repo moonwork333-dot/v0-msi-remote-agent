@@ -4,6 +4,7 @@ const { exec } = require("child_process")
 const fs = require("fs")
 const fsPromises = require("fs").promises
 const path = require("path")
+const InputController = require("./input-control")
 
 const LOG_FILE = path.join(path.dirname(process.execPath), "agent.log")
 
@@ -42,7 +43,7 @@ log(`Log file: ${LOG_FILE}`)
 log(`Is Windows Service: ${isWindowsService}`)
 
 let screenshot = null
-let robot = null
+let inputController = null
 
 try {
   screenshot = require("screenshot-desktop")
@@ -52,10 +53,10 @@ try {
 }
 
 try {
-  robot = require("robotjs")
-  log("[Agent] RobotJS module loaded successfully")
+  inputController = new InputController()
+  log("[Agent] Input controller initialized successfully")
 } catch (error) {
-  log("[Agent] RobotJS module not available: " + error.message)
+  log("[Agent] Input controller not available: " + error.message)
 }
 
 const configPaths = [
@@ -379,7 +380,7 @@ class AgentService {
   }
 
   handleRemoteInput(input, requestId) {
-    if (!robot) {
+    if (!inputController) {
       if (requestId) {
         this.sendToDashboard({
           type: "remote-input-result",
@@ -390,71 +391,60 @@ class AgentService {
       }
       return
     }
+    ;(async () => {
+      try {
+        switch (input.type) {
+          case "mousemove":
+            await inputController.moveMouse(input.x, input.y)
+            break
 
-    try {
-      switch (input.type) {
-        case "mousemove":
-          robot.moveMouse(input.x, input.y)
-          break
+          case "mousedown":
+            await inputController.mouseDown(input.button || "left")
+            break
 
-        case "mousedown":
-          robot.mouseToggle("down", input.button || "left")
-          break
+          case "mouseup":
+            await inputController.mouseUp(input.button || "left")
+            break
 
-        case "mouseup":
-          robot.mouseToggle("up", input.button || "left")
-          break
+          case "click":
+            await inputController.mouseClick(input.button || "left", input.double || false)
+            break
 
-        case "click":
-          robot.mouseClick(input.button || "left", input.double || false)
-          break
+          case "scroll":
+            await inputController.scroll(input.x || 0, input.y || 0)
+            break
 
-        case "scroll":
-          robot.scrollMouse(input.x || 0, input.y || 0)
-          break
+          case "keypress":
+            await inputController.keyTap(input.key, input.modifiers || [])
+            break
 
-        case "keypress":
-          if (input.modifiers && input.modifiers.length > 0) {
-            robot.keyTap(input.key, input.modifiers)
-          } else {
-            robot.keyTap(input.key)
-          }
-          break
+          case "type":
+            await inputController.typeString(input.text)
+            break
 
-        case "keydown":
-          robot.keyToggle(input.key, "down", input.modifiers)
-          break
+          default:
+            log("[Agent] Unknown input type: " + input.type)
+        }
 
-        case "keyup":
-          robot.keyToggle(input.key, "up", input.modifiers)
-          break
-
-        case "type":
-          robot.typeString(input.text)
-          break
-
-        default:
-          log("[Agent] Unknown input type: " + input.type)
+        if (requestId) {
+          this.sendToDashboard({
+            type: "remote-input-result",
+            requestId,
+            success: true,
+          })
+        }
+      } catch (error) {
+        log("[Agent] Remote input error: " + error.message)
+        if (requestId) {
+          this.sendToDashboard({
+            type: "remote-input-result",
+            requestId,
+            success: false,
+            error: error.message,
+          })
+        }
       }
-
-      if (requestId) {
-        this.sendToDashboard({
-          type: "remote-input-result",
-          requestId,
-          success: true,
-        })
-      }
-    } catch (error) {
-      log("[Agent] Remote input error: " + error.message)
-      if (requestId) {
-        this.sendToDashboard({
-          type: "remote-input-result",
-          requestId,
-          success: false,
-          error: error.message,
-        })
-      }
-    }
+    })()
   }
 
   async listFiles(directory, requestId) {
@@ -692,8 +682,8 @@ class AgentService {
         )
       } else if (platform === "darwin") {
         // macOS: Wake display (move mouse slightly)
-        if (robot) {
-          robot.moveMouse(robot.getMousePos().x + 1, robot.getMousePos().y)
+        if (inputController) {
+          inputController.moveMouse(100, 100).catch(() => {})
         }
         this.isScreenBlank = false
         this.sendToDashboard({
