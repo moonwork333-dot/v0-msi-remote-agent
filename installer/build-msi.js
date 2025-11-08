@@ -1,0 +1,131 @@
+const fs = require("fs")
+const path = require("path")
+const { execSync } = require("child_process")
+
+const CONFIG = {
+  productName: "MSI Remote Agent",
+  productVersion: "1.0.0",
+  manufacturer: "Your Company Name",
+  upgradeCode: "{12345678-1234-1234-1234-123456789012}", // Generate unique GUID for your product
+  agentExePath: path.resolve(__dirname, "../agent/dist/agent.exe"),
+  outputDir: path.resolve(__dirname, "output"),
+  wxsFile: path.resolve(__dirname, "installer.wxs"),
+  wixobjFile: path.resolve(__dirname, "installer.wixobj"),
+  msiFile: path.resolve(__dirname, "output", "MSIRemoteAgent-1.0.0.msi"),
+}
+
+// Ensure output directory exists
+if (!fs.existsSync(CONFIG.outputDir)) {
+  fs.mkdirSync(CONFIG.outputDir, { recursive: true })
+}
+
+// Check if agent.exe exists
+if (!fs.existsSync(CONFIG.agentExePath)) {
+  console.error("Error: agent.exe not found at:", CONFIG.agentExePath)
+  console.error("Please build the agent first: cd agent && npm run build")
+  process.exit(1)
+}
+
+// Generate WiX XML
+const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" 
+           Name="${CONFIG.productName}" 
+           Language="1033" 
+           Version="${CONFIG.productVersion}" 
+           Manufacturer="${CONFIG.manufacturer}" 
+           UpgradeCode="${CONFIG.upgradeCode}">
+    
+    <Package InstallerVersion="200" 
+             Compressed="yes" 
+             InstallScope="perMachine" 
+             Description="${CONFIG.productName} Installer" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="ProductFeature" Title="${CONFIG.productName}" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="MSIRemoteAgent" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="${CONFIG.productName}"/>
+      </Directory>
+    </Directory>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="AgentExecutable" Guid="*">
+        <File Id="AgentExe" Source="${CONFIG.agentExePath.replace(/\\/g, "\\\\")}" KeyPath="yes" />
+        
+        <!-- Install as Windows Service -->
+        <ServiceInstall
+          Id="MSIRemoteAgentService"
+          Name="MSIRemoteAgent"
+          DisplayName="MSI Remote Agent Service"
+          Description="Remote administration agent for MSI systems"
+          Type="ownProcess"
+          Start="auto"
+          Account="LocalSystem"
+          ErrorControl="normal"
+          Interactive="no" />
+        
+        <ServiceControl
+          Id="StartService"
+          Name="MSIRemoteAgent"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+    </ComponentGroup>
+
+  </Product>
+</Wix>`
+
+fs.writeFileSync(CONFIG.wxsFile, wxsContent)
+console.log("✓ Generated WiX source file:", CONFIG.wxsFile)
+
+try {
+  // Compile WiX source to object file
+  console.log("\n→ Compiling WiX source...")
+  execSync(`candle.exe "${CONFIG.wxsFile}" -out "${CONFIG.wixobjFile}"`, { stdio: "inherit" })
+  console.log("✓ WiX compilation successful")
+
+  // Link to create MSI
+  console.log("\n→ Linking MSI installer...")
+  execSync(`light.exe "${CONFIG.wixobjFile}" -out "${CONFIG.msiFile}"`, { stdio: "inherit" })
+  console.log("✓ MSI created successfully:", CONFIG.msiFile)
+
+  // Sign the MSI if certificate is provided
+  if (process.env.CERT_PATH && process.env.CERT_PASSWORD) {
+    console.log("\n→ Signing MSI installer...")
+    try {
+      execSync(
+        `signtool sign /f "${process.env.CERT_PATH}" /p "${process.env.CERT_PASSWORD}" /tr http://timestamp.digicert.com /td sha256 /fd sha256 "${CONFIG.msiFile}"`,
+        { stdio: "inherit" },
+      )
+      console.log("✓ MSI signed successfully")
+    } catch (signError) {
+      console.warn("⚠ Warning: MSI signing failed:", signError.message)
+      console.warn("MSI will be unsigned")
+    }
+  } else {
+    console.log("\n⚠ No certificate provided - MSI will be unsigned")
+    console.log("Set CERT_PATH and CERT_PASSWORD environment variables to enable signing")
+  }
+
+  // Clean up intermediate files
+  if (fs.existsSync(CONFIG.wxsFile)) fs.unlinkSync(CONFIG.wxsFile)
+  if (fs.existsSync(CONFIG.wixobjFile)) fs.unlinkSync(CONFIG.wixobjFile)
+
+  console.log("\n✓ Build complete!")
+  console.log(`\nInstaller: ${CONFIG.msiFile}`)
+  console.log(`Size: ${(fs.statSync(CONFIG.msiFile).size / 1024 / 1024).toFixed(2)} MB`)
+} catch (error) {
+  console.error("\n✗ Build failed:", error.message)
+  process.exit(1)
+}
