@@ -71,16 +71,15 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
           DisplayName="MSI Remote Agent Service"
           Description="Remote administration agent for MSI systems"
           Type="ownProcess"
-          Start="auto"
+          Start="demand"
           Account="LocalSystem"
           ErrorControl="normal"
           Interactive="no"
-          Vital="yes" />
+          Vital="no" />
         
         <ServiceControl
-          Id="StartService"
+          Id="StopService"
           Name="MSIRemoteAgent"
-          Start="install"
           Stop="both"
           Remove="uninstall"
           Wait="yes" />
