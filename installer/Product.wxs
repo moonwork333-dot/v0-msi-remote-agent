@@ -22,17 +22,12 @@
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="MSI Remote Agent">
-          <!-- Consolidated into single component to avoid issues -->
+          <!-- Removed NSSM, now using node-windows built into agent.exe -->
           <Component Id="MainFiles" Guid="87654321-4321-4321-4321-210987654321" Win64="yes">
             <File Id="AgentExe" 
                   Source="..\agent\dist\agent.exe"
                   Name="agent.exe"
                   KeyPath="yes" 
-                  Checksum="yes" />
-            <!-- Fixed NSSM path to match build script output -->
-            <File Id="NssmExe" 
-                  Source="nssm/nssm.exe"
-                  Name="nssm.exe"
                   Checksum="yes" />
             <File Id="ConfigJson" 
                   Source="..\installer\config.json" />
@@ -91,7 +86,7 @@
       </Directory>
     </Directory>
 
-    <!-- Added custom actions to auto-install service after MSI installation -->
+    <!-- Updated custom actions to use node-windows instead of NSSM -->
     <CustomAction Id="InstallServiceAction"
                   Directory="INSTALLFOLDER"
                   ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]install-service.cmd&quot;"
@@ -113,7 +108,6 @@
       <Custom Action="UninstallServiceAction" Before="RemoveFiles">Installed AND NOT REINSTALL</Custom>
     </InstallExecuteSequence>
 
-    <!-- Simplified feature with single component reference -->
     <Feature Id="ProductFeature" Title="MSI Remote Agent" Level="1">
       <ComponentRef Id="MainFiles" />
       <ComponentRef Id="ApplicationShortcut" />

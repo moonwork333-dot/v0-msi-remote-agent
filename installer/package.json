@@ -9,8 +9,7 @@
   },
   "dependencies": {
     "pkg": "^5.8.1",
-    "archiver": "^7.0.1",
-    "adm-zip": "^0.5.10"
+    "archiver": "^7.0.1"
   },
   "devDependencies": {}
 }

@@ -1,20 +1,21 @@
 MSI Remote Agent - Installation Complete
 =========================================
 
-The MSI Remote Agent files have been installed to:
+The MSI Remote Agent has been installed to:
 C:\Program Files\MSI Remote Agent
 
-IMPORTANT: Service Installation Required
+IMPORTANT: Service Installation
 -----------------------------------------
 
-After the MSI installer completes, you MUST install the Windows Service separately.
+The Windows Service should have been automatically installed during setup.
+If the agent doesn't appear in your dashboard, follow these steps:
 
 Option 1: Use Desktop Shortcut (Easiest)
    1. Find "Install MSI Agent Service" shortcut on your Desktop
    2. RIGHT-CLICK the shortcut
    3. Select "Run as administrator"
    4. A command window will open and install the service
-   5. Press any key when it says "Press any key to continue..."
+   5. The service will start automatically
 
 Option 2: Use Start Menu
    1. Open Start Menu and search for "MSI Remote Agent"
@@ -36,8 +37,7 @@ To check if the service is running, open Command Prompt and run:
 
 You should see: STATE: 4 RUNNING
 
-If you see "FAILED 1060: The specified service does not exist", 
-the service hasn't been installed yet. Follow the steps above.
+The agent should appear in your dashboard within 10-15 seconds.
 
 Configuration
 -------------
@@ -53,54 +53,70 @@ To change the server URL:
 Troubleshooting
 ---------------
 
-Problem: "The system cannot find the path specified"
-Solution: The MSI didn't install properly. Try:
-   1. Uninstall any existing version via Control Panel
-   2. Download the latest MSI installer
-   3. RIGHT-CLICK the MSI file and select "Run as administrator"
-   4. Complete the installation
-   5. Then follow the service installation steps above
-
-Problem: Service won't start
-Solution: 
-   1. Open Event Viewer (press Windows Key + R, type: eventvwr.msc)
-   2. Go to: Windows Logs > Application
-   3. Look for errors from "MSI Remote Agent"
-   4. Check that config.json has a valid SERVER_URL
-   5. Verify Windows Firewall isn't blocking the connection
-
 Problem: Agent doesn't appear in dashboard
 Solution:
    1. Verify service is running: sc query "MSI Remote Agent"
-   2. Check the SERVER_URL in config.json matches your server
-   3. Ensure the server is running and accessible
-   4. Check firewall settings on both agent and server
+   2. If not running, run install-service.cmd as Administrator
+   3. Check the SERVER_URL in config.json matches your server
+   4. Ensure the server is running and accessible
+   5. Check firewall settings on both agent and server
+
+Problem: Service won't start
+Solution: 
+   1. Check Event Viewer (Windows Key + R, type: eventvwr.msc)
+   2. Go to: Windows Logs > Application
+   3. Look for errors from "MSI Remote Agent"
+   4. Verify config.json has a valid SERVER_URL
+   5. Check Windows Firewall isn't blocking the connection
+
+Problem: Antivirus blocking installation
+Solution:
+   The installer uses node-windows (native Windows service wrapper)
+   which is less likely to trigger antivirus false positives.
+   If blocked, add an exception for: C:\Program Files\MSI Remote Agent\
+
+Problem: "Service already exists" error
+Solution:
+   1. Run uninstall-service.cmd as Administrator first
+   2. Wait 10 seconds
+   3. Then run install-service.cmd as Administrator
 
 Uninstallation
 --------------
 To uninstall:
-   1. The service will be automatically stopped and removed
-   2. Go to: Control Panel > Programs and Features
-   3. Find "MSI Remote Agent" and click Uninstall
+   1. Go to: Control Panel > Programs and Features
+   2. Find "MSI Remote Agent" and click Uninstall
+   3. The service will be automatically stopped and removed
    OR
    4. Start Menu > MSI Remote Agent > Uninstall MSI Remote Agent
 
 Files Location
 --------------
 Installation: C:\Program Files\MSI Remote Agent\
-   - agent.exe (the service executable)
+   - agent.exe (the service executable with built-in service installer)
    - config.json (configuration file)
-   - install-service.cmd (service installer)
-   - uninstall-service.cmd (service uninstaller)
+   - install-service.cmd (service installer script)
+   - uninstall-service.cmd (service uninstaller script)
    - README.txt (this file)
 
-Logs: C:\Program Files\MSI Remote Agent\logs\
-   - agent.log (service logs, if logging is enabled)
+Logs: C:\Program Files\MSI Remote Agent\
+   - agent.log (main service logs)
+   - daemon\ (Windows service wrapper files)
+
+Technical Details
+-----------------
+This installer uses node-windows to create native Windows services
+without external dependencies like NSSM. This approach:
+   - Reduces antivirus false positives
+   - Creates proper Windows services with automatic restart
+   - Provides better integration with Windows Service Manager
+   - No external executables required
 
 Support
 -------
 If you continue to have issues:
-   1. Check that you're running Windows 10 or later
+   1. Check that you're running Windows 10 or later (64-bit)
    2. Verify you have Administrator privileges
-   3. Try disabling antivirus temporarily during installation
-   4. Check Windows Event Viewer for detailed error messages
+   3. Check Windows Event Viewer for detailed error messages
+   4. Temporarily disable antivirus during installation if needed
+   5. Ensure .NET Framework 4.5+ is installed (required for service wrapper)

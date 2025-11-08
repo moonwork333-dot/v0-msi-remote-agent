@@ -96,7 +96,7 @@ importers:
         specifier: latest
         version: 1.5.0(next@16.0.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
       adm-zip:
-        specifier: latest
+        specifier: 0.5.16
         version: 0.5.16
       autoprefixer:
         specifier: ^10.4.20

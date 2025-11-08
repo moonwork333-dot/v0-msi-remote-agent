@@ -7,17 +7,24 @@
     "start": "node service.js",
     "dev": "node service.js",
     "build": "pkg . --targets node18-win-x64 --output dist/agent.exe",
-    "build-installer": "node build-msi.js"
+    "install-service": "node install-service.js",
+    "uninstall-service": "node uninstall-service.js"
   },
   "bin": "service.js",
   "pkg": {
-    "assets": ["config.json", "node_modules/screenshot-desktop/**/*", "node_modules/robotjs/**/*"],
+    "assets": [
+      "config.json",
+      "node_modules/screenshot-desktop/**/*",
+      "node_modules/robotjs/**/*",
+      "node_modules/node-windows/**/*"
+    ],
     "outputPath": "dist"
   },
   "dependencies": {
     "ws": "^8.18.0",
     "screenshot-desktop": "^1.15.0",
-    "robotjs": "^0.6.0"
+    "robotjs": "^0.6.0",
+    "node-windows": "^1.0.0-beta.8"
   },
   "devDependencies": {
     "pkg": "^5.8.1"
