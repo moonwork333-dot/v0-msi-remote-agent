@@ -22,12 +22,24 @@ function log(message) {
   }
 }
 
+// Check if running as Windows service
+const isWindowsService = process.platform === "win32" && !process.stdout.isTTY
+
+if (isWindowsService) {
+  // Redirect console output to log file when running as service
+  const logStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
+  process.stdout.write = process.stderr.write = logStream.write.bind(logStream)
+
+  log("=== Running as Windows Service ===")
+}
+
 // Log startup immediately
 log("=== MSI Remote Agent Starting ===")
 log(`Process ID: ${process.pid}`)
 log(`Executable path: ${process.execPath}`)
 log(`Working directory: ${process.cwd()}`)
 log(`Log file: ${LOG_FILE}`)
+log(`Is Windows Service: ${isWindowsService}`)
 
 let screenshot = null
 let robot = null
@@ -51,6 +63,7 @@ const configPaths = [
   path.join(process.cwd(), "config.json"),
   path.join(path.dirname(process.execPath), "config.json"),
   "C:\\Program Files (x86)\\MSI Remote Agent\\config.json",
+  "C:\\Program Files\\MSI Remote Agent\\config.json",
 ]
 
 let SERVER_URL_FROM_CONFIG = "ws://localhost:8080"

@@ -1,6 +1,6 @@
 @echo off
-REM Native Windows Service Installation Script
-REM This script creates a Windows Service using only built-in Windows tools (sc.exe)
+REM Windows Service Installation Script using NSSM
+REM NSSM wraps the agent.exe to make it work as a proper Windows service
 
 echo ========================================
 echo MSI Remote Agent Service Installer
@@ -19,13 +19,12 @@ echo.
 
 set "SERVICE_NAME=MSI Remote Agent"
 set "EXE_PATH=%INSTALL_DIR%\agent.exe"
+set "NSSM_PATH=%INSTALL_DIR%\nssm.exe"
+set "NSSM_URL=https://nssm.cc/release/nssm-2.24.zip"
 
-REM Better validation with more informative error messages
+REM Validate installation directory and executable
 if not exist "%INSTALL_DIR%" (
     echo ERROR: Installation directory does not exist: %INSTALL_DIR%
-    echo.
-    echo Please verify that MSI Remote Agent is installed correctly.
-    echo Default location: C:\Program Files\MSI Remote Agent
     echo.
     pause
     exit /b 1
@@ -34,9 +33,6 @@ if not exist "%INSTALL_DIR%" (
 if not exist "%EXE_PATH%" (
     echo ERROR: Agent executable not found at: %EXE_PATH%
     echo.
-    echo Please verify the installation completed correctly.
-    echo Try reinstalling MSI Remote Agent.
-    echo.
     pause
     exit /b 1
 )
@@ -44,64 +40,124 @@ if not exist "%EXE_PATH%" (
 echo Found agent executable: %EXE_PATH%
 echo.
 
-REM Stop and remove existing service if it exists
-sc query "%SERVICE_NAME%" >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    echo Existing service found. Removing...
-    sc stop "%SERVICE_NAME%" >nul 2>&1
-    timeout /t 2 /nobreak >nul
-    sc delete "%SERVICE_NAME%" >nul 2>&1
-    timeout /t 1 /nobreak >nul
+REM Check if NSSM exists, if not download it
+if not exist "%NSSM_PATH%" (
+    echo NSSM not found. Downloading NSSM service wrapper...
+    echo This is needed to run the agent as a Windows service.
     echo.
+    
+    REM Download NSSM using PowerShell
+    powershell -Command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri '%NSSM_URL%' -OutFile '%INSTALL_DIR%\nssm.zip'"
+    
+    if not exist "%INSTALL_DIR%\nssm.zip" (
+        echo ERROR: Failed to download NSSM
+        echo.
+        echo Manual installation:
+        echo 1. Download NSSM from https://nssm.cc/download
+        echo 2. Extract nssm.exe to: %INSTALL_DIR%
+        echo 3. Run this script again
+        echo.
+        pause
+        exit /b 1
+    )
+    
+    echo Extracting NSSM...
+    powershell -Command "Expand-Archive -Path '%INSTALL_DIR%\nssm.zip' -DestinationPath '%INSTALL_DIR%\nssm_temp' -Force"
+    
+    REM Copy the correct architecture version (64-bit)
+    copy /Y "%INSTALL_DIR%\nssm_temp\nssm-2.24\win64\nssm.exe" "%NSSM_PATH%" >nul 2>&1
+    
+    REM Cleanup
+    del /Q "%INSTALL_DIR%\nssm.zip" >nul 2>&1
+    rmdir /S /Q "%INSTALL_DIR%\nssm_temp" >nul 2>&1
+    
+    if exist "%NSSM_PATH%" (
+        echo NSSM downloaded successfully.
+        echo.
+    ) else (
+        echo ERROR: Failed to extract NSSM
+        pause
+        exit /b 1
+    )
 )
 
-REM Create the service with proper quoting for paths with special characters
-echo Creating Windows Service...
-REM Use a temporary file to avoid batch parsing issues with parentheses
-set "BINPATH=%EXE_PATH%"
-sc create "%SERVICE_NAME%" binPath= "%BINPATH%" start= auto DisplayName= "%SERVICE_NAME%"
+echo Using NSSM at: %NSSM_PATH%
+echo.
+
+REM Stop and remove existing service if it exists
+"%NSSM_PATH%" stop "%SERVICE_NAME%" >nul 2>&1
+timeout /t 2 /nobreak >nul
+"%NSSM_PATH%" remove "%SERVICE_NAME%" confirm >nul 2>&1
+timeout /t 1 /nobreak >nul
+
+REM Create the service using NSSM
+echo Creating Windows Service using NSSM...
+"%NSSM_PATH%" install "%SERVICE_NAME%" "%EXE_PATH%"
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo ERROR: Failed to create service (Error code: %ERRORLEVEL%)
-    echo.
-    echo Common causes:
-    echo - Script not run as Administrator (Right-click ^> Run as administrator)
-    echo - Service name conflicts with existing service
+    echo ERROR: Failed to create service
+    echo Make sure you are running this script as Administrator
     echo.
     pause
     exit /b 1
 )
 
-REM Set service description
-sc description "%SERVICE_NAME%" "Remote monitoring and control agent" >nul 2>&1
+REM Configure service
+echo Configuring service...
+"%NSSM_PATH%" set "%SERVICE_NAME%" DisplayName "%SERVICE_NAME%" >nul 2>&1
+"%NSSM_PATH%" set "%SERVICE_NAME%" Description "Remote monitoring and control agent" >nul 2>&1
+"%NSSM_PATH%" set "%SERVICE_NAME%" Start SERVICE_AUTO_START >nul 2>&1
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppDirectory "%INSTALL_DIR%" >nul 2>&1
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppStdout "%INSTALL_DIR%\service-output.log" >nul 2>&1
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppStderr "%INSTALL_DIR%\service-error.log" >nul 2>&1
 
-REM Configure service to restart on failure
-sc failure "%SERVICE_NAME%" reset= 86400 actions= restart/5000/restart/10000// >nul 2>&1
+REM Configure restart on failure
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppExit Default Restart >nul 2>&1
+"%NSSM_PATH%" set "%SERVICE_NAME%" AppRestartDelay 5000 >nul 2>&1
 
 echo.
 echo Starting service...
-sc start "%SERVICE_NAME%"
+"%NSSM_PATH%" start "%SERVICE_NAME%"
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo WARNING: Service created but failed to start (Error code: %ERRORLEVEL%)
-    echo The service is installed and will start on next reboot.
+    echo ERROR: Service created but failed to start
     echo.
-    echo To manually start: sc start "%SERVICE_NAME%"
+    echo Check the logs at:
+    echo - %INSTALL_DIR%\agent.log
+    echo - %INSTALL_DIR%\service-output.log
+    echo - %INSTALL_DIR%\service-error.log
     echo.
     pause
-    exit /b 0
+    exit /b 1
 )
 
-echo.
-echo ========================================
-echo SUCCESS! Service installed and started.
-echo ========================================
-echo.
-echo The agent should now appear in your dashboard within 10-15 seconds.
-echo.
-echo To check service status: sc query "%SERVICE_NAME%"
-echo.
+REM Wait a moment and check service status
+timeout /t 3 /nobreak >nul
+sc query "%SERVICE_NAME%" | find "RUNNING" >nul 2>&1
+
+if %ERRORLEVEL% EQU 0 (
+    echo.
+    echo ========================================
+    echo SUCCESS! Service is running.
+    echo ========================================
+    echo.
+    echo The agent should appear in your dashboard within 10-15 seconds.
+    echo.
+    echo Logs location: %INSTALL_DIR%\agent.log
+    echo.
+) else (
+    echo.
+    echo WARNING: Service started but may not be running properly.
+    echo.
+    echo Check the logs at:
+    echo - %INSTALL_DIR%\agent.log
+    echo - %INSTALL_DIR%\service-output.log
+    echo.
+    echo To check status: sc query "%SERVICE_NAME%"
+    echo.
+)
+
 pause
 exit /b 0
