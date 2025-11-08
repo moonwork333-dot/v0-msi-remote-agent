@@ -36,9 +36,31 @@ jobs:
         env:
           npm_config_msvs_version: '2022'
 
+      - name: Cache nexe binaries
+        uses: actions/cache@v3
+        with:
+          path: ~/.nexe
+          key: ${{ runner.os }}-nexe-${{ hashFiles('**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nexe-
+
       - name: Build agent executable
         working-directory: ./agent
-        run: npm run build
+        run: |
+          mkdir -p dist
+          npm run build
+        shell: bash
+
+      - name: Verify agent executable
+        run: |
+          if (Test-Path "./agent/dist/agent.exe") {
+            Write-Host "Agent executable built successfully"
+            Get-Item "./agent/dist/agent.exe" | Format-List
+          } else {
+            Write-Error "Agent executable not found!"
+            exit 1
+          }
+        shell: powershell
 
       - name: Install installer dependencies
         working-directory: ./installer
