@@ -52,9 +52,6 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER" Name="MSIRemoteAgent" />
       </Directory>
-      <Directory Id="ProgramMenuFolder">
-        <Directory Id="ApplicationProgramsFolder" Name="${CONFIG.productName}"/>
-      </Directory>
     </Directory>
 
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
