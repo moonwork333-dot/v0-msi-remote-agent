@@ -30,18 +30,11 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Setup node-gyp
-        run: |
-          npm install -g node-gyp
-          npm config set msvs_version 2022
-          npm config set python ${{ env.pythonLocation }}\python.exe
-
       - name: Install agent dependencies
         working-directory: ./agent
-        run: |
-          npm install
+        run: npm install
         env:
-          npm_config_msvs_version: 2022
+          npm_config_msvs_version: '2022'
 
       - name: Build agent executable
         working-directory: ./agent
