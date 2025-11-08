@@ -29,6 +29,10 @@
                   Name="agent.exe"
                   KeyPath="yes" 
                   Checksum="yes" />
+            <File Id="NssmExe" 
+                  Source="nssm\nssm.exe"
+                  Name="nssm.exe"
+                  Checksum="yes" />
             <File Id="ConfigJson" 
                   Source="..\installer\config.json" />
             <File Id="InstallServiceCmd" 

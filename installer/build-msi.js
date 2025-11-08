@@ -2,11 +2,72 @@ import { execSync } from "child_process"
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
+import https from "https"
+import { createWriteStream } from "fs"
+import AdmZip from "adm-zip"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+async function downloadNSSM() {
+  console.log("Step 1a: Downloading NSSM...")
+  const nssmUrl = "https://nssm.cc/release/nssm-2.24.zip"
+  const nssmZip = path.join(__dirname, "nssm.zip")
+  const nssmDir = path.join(__dirname, "nssm")
+
+  // Check if already downloaded
+  if (fs.existsSync(path.join(nssmDir, "nssm.exe"))) {
+    console.log("✓ NSSM already downloaded\n")
+    return
+  }
+
+  // Download NSSM
+  return new Promise((resolve, reject) => {
+    https
+      .get(nssmUrl, (response) => {
+        const fileStream = createWriteStream(nssmZip)
+        response.pipe(fileStream)
+        fileStream.on("finish", () => {
+          fileStream.close()
+          console.log("✓ NSSM downloaded\n")
+
+          // Extract nssm.exe from win64 folder
+          console.log("Step 1b: Extracting NSSM...")
+          const zip = new AdmZip(nssmZip)
+          const zipEntries = zip.getEntries()
+
+          // Find nssm.exe in win64 folder
+          const nssmEntry = zipEntries.find((entry) => entry.entryName.includes("win64/nssm.exe"))
+          if (!nssmEntry) {
+            reject(new Error("Could not find nssm.exe in downloaded archive"))
+            return
+          }
+
+          // Create nssm directory and extract
+          if (!fs.existsSync(nssmDir)) {
+            fs.mkdirSync(nssmDir, { recursive: true })
+          }
+
+          zip.extractEntryTo(nssmEntry, nssmDir, false, true)
+          console.log("✓ NSSM extracted\n")
+
+          // Clean up zip file
+          fs.unlinkSync(nssmZip)
+          resolve()
+        })
+      })
+      .on("error", reject)
+  })
+}
+
 console.log("Building MSI Installer...\n")
+
+try {
+  await downloadNSSM()
+} catch (error) {
+  console.error("✗ Failed to download NSSM:", error.message)
+  process.exit(1)
+}
 
 // Step 1: Check if WiX Toolset is installed
 console.log("Step 1: Checking WiX Toolset installation...")
