@@ -29,8 +29,9 @@
                   Name="agent.exe"
                   KeyPath="yes" 
                   Checksum="yes" />
+            <!-- Fixed NSSM path to match build script output -->
             <File Id="NssmExe" 
-                  Source="nssm\nssm.exe"
+                  Source="nssm/nssm.exe"
                   Name="nssm.exe"
                   Checksum="yes" />
             <File Id="ConfigJson" 
@@ -89,6 +90,28 @@
         </Component>
       </Directory>
     </Directory>
+
+    <!-- Added custom actions to auto-install service after MSI installation -->
+    <CustomAction Id="InstallServiceAction"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]install-service.cmd&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+    
+    <CustomAction Id="UninstallServiceAction"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]uninstall-service.cmd&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <!-- Run service installation after files are installed -->
+      <Custom Action="InstallServiceAction" After="InstallFiles">NOT Installed</Custom>
+      <!-- Run service uninstallation before files are removed -->
+      <Custom Action="UninstallServiceAction" Before="RemoveFiles">Installed AND NOT REINSTALL</Custom>
+    </InstallExecuteSequence>
 
     <!-- Simplified feature with single component reference -->
     <Feature Id="ProductFeature" Title="MSI Remote Agent" Level="1">
