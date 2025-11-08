@@ -1,83 +1,81 @@
-const { exec } = require("child_process")
+const ffi = require("ffi-napi")
+const ref = require("ref-napi")
 const os = require("os")
-const util = require("util")
-const execPromise = util.promisify(exec)
+
+// Define Windows API types
+const int = ref.types.int
+const uint = ref.types.uint
+const byte = ref.types.byte
+const uintPtr = ref.types.ulong
 
 class InputController {
   constructor() {
     this.platform = os.platform()
+
+    if (this.platform === "win32") {
+      // Load user32.dll for mouse and keyboard control
+      this.user32 = ffi.Library("user32", {
+        SetCursorPos: ["bool", [int, int]],
+        mouse_event: ["void", [uint, uint, uint, uint, uintPtr]],
+        keybd_event: ["void", [byte, byte, uint, uintPtr]],
+        GetCursorPos: ["bool", ["pointer"]],
+      })
+    }
   }
 
   async moveMouse(x, y) {
     if (this.platform === "win32") {
-      const script = `
-Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x}, ${y})
-      `
-      return this.execPowerShell(script)
+      this.user32.SetCursorPos(Math.round(x), Math.round(y))
+      return true
     }
     throw new Error("Platform not supported")
   }
 
   async mouseClick(button = "left", double = false) {
     if (this.platform === "win32") {
-      const buttonCode = button === "left" ? "0x02" : "0x08"
-      const downCode = button === "left" ? "0x02" : "0x08"
-      const upCode = button === "left" ? "0x04" : "0x10"
+      const downFlag = button === "left" ? 0x0002 : 0x0008 // MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_RIGHTDOWN
+      const upFlag = button === "left" ? 0x0004 : 0x0010 // MOUSEEVENTF_LEFTUP : MOUSEEVENTF_RIGHTUP
 
-      const script = `
-Add-Type -MemberDefinition @"
-  [DllImport("user32.dll")] public static extern void mouse_event(int flags, int dx, int dy, int cButtons, int extrainfo);
-"@ -Name "MouseControl" -Namespace Win32
-[Win32.MouseControl]::mouse_event(${downCode}, 0, 0, 0, 0)
-Start-Sleep -Milliseconds 50
-[Win32.MouseControl]::mouse_event(${upCode}, 0, 0, 0, 0)
-${double ? `Start-Sleep -Milliseconds 50\n[Win32.MouseControl]::mouse_event(${downCode}, 0, 0, 0, 0)\nStart-Sleep -Milliseconds 50\n[Win32.MouseControl]::mouse_event(${upCode}, 0, 0, 0, 0)` : ""}
-      `
-      return this.execPowerShell(script)
+      this.user32.mouse_event(downFlag, 0, 0, 0, 0)
+      await this.sleep(50)
+      this.user32.mouse_event(upFlag, 0, 0, 0, 0)
+
+      if (double) {
+        await this.sleep(50)
+        this.user32.mouse_event(downFlag, 0, 0, 0, 0)
+        await this.sleep(50)
+        this.user32.mouse_event(upFlag, 0, 0, 0, 0)
+      }
+
+      return true
     }
     throw new Error("Platform not supported")
   }
 
   async mouseDown(button = "left") {
     if (this.platform === "win32") {
-      const downCode = button === "left" ? "0x02" : "0x08"
-
-      const script = `
-Add-Type -MemberDefinition @"
-  [DllImport("user32.dll")] public static extern void mouse_event(int flags, int dx, int dy, int cButtons, int extrainfo);
-"@ -Name "MouseControl" -Namespace Win32
-[Win32.MouseControl]::mouse_event(${downCode}, 0, 0, 0, 0)
-      `
-      return this.execPowerShell(script)
+      const downFlag = button === "left" ? 0x0002 : 0x0008
+      this.user32.mouse_event(downFlag, 0, 0, 0, 0)
+      return true
     }
     throw new Error("Platform not supported")
   }
 
   async mouseUp(button = "left") {
     if (this.platform === "win32") {
-      const upCode = button === "left" ? "0x04" : "0x10"
-
-      const script = `
-Add-Type -MemberDefinition @"
-  [DllImport("user32.dll")] public static extern void mouse_event(int flags, int dx, int dy, int cButtons, int extrainfo);
-"@ -Name "MouseControl" -Namespace Win32
-[Win32.MouseControl]::mouse_event(${upCode}, 0, 0, 0, 0)
-      `
-      return this.execPowerShell(script)
+      const upFlag = button === "left" ? 0x0004 : 0x0010
+      this.user32.mouse_event(upFlag, 0, 0, 0, 0)
+      return true
     }
     throw new Error("Platform not supported")
   }
 
   async scroll(x, y) {
     if (this.platform === "win32") {
-      const script = `
-Add-Type -MemberDefinition @"
-  [DllImport("user32.dll")] public static extern void mouse_event(int flags, int dx, int dy, int cButtons, int extrainfo);
-"@ -Name "MouseControl" -Namespace Win32
-[Win32.MouseControl]::mouse_event(0x0800, 0, 0, ${y * 120}, 0)
-      `
-      return this.execPowerShell(script)
+      const MOUSEEVENTF_WHEEL = 0x0800
+      const wheelDelta = Math.round(y * 120) // Standard wheel delta is 120 per notch
+      this.user32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, wheelDelta, 0)
+      return true
     }
     throw new Error("Platform not supported")
   }
@@ -87,39 +85,49 @@ Add-Type -MemberDefinition @"
       const vkCode = this.getVKCode(key)
       const modCodes = modifiers.map((m) => this.getVKCode(m))
 
-      let script = `
-Add-Type -MemberDefinition @"
-  [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, uint dwExtraInfo);
-"@ -Name "KeyControl" -Namespace Win32
-`
       // Press modifiers
-      modCodes.forEach((code) => {
-        script += `[Win32.KeyControl]::keybd_event(${code}, 0, 0, 0)\n`
-      })
+      for (const code of modCodes) {
+        this.user32.keybd_event(code, 0, 0, 0)
+      }
 
       // Press key
-      script += `[Win32.KeyControl]::keybd_event(${vkCode}, 0, 0, 0)\n`
-      script += `Start-Sleep -Milliseconds 50\n`
-      script += `[Win32.KeyControl]::keybd_event(${vkCode}, 0, 2, 0)\n`
+      this.user32.keybd_event(vkCode, 0, 0, 0)
+      await this.sleep(50)
+      // Release key (KEYEVENTF_KEYUP = 0x0002)
+      this.user32.keybd_event(vkCode, 0, 0x0002, 0)
 
       // Release modifiers
-      modCodes.forEach((code) => {
-        script += `[Win32.KeyControl]::keybd_event(${code}, 0, 2, 0)\n`
-      })
+      for (const code of modCodes) {
+        this.user32.keybd_event(code, 0, 0x0002, 0)
+      }
 
-      return this.execPowerShell(script)
+      return true
     }
     throw new Error("Platform not supported")
   }
 
   async typeString(text) {
     if (this.platform === "win32") {
-      const escaped = text.replace(/'/g, "''").replace(/"/g, '""')
-      const script = `
-Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.SendKeys]::SendWait('${escaped}')
-      `
-      return this.execPowerShell(script)
+      // Type each character one by one
+      for (const char of text) {
+        const vkCode = char.toUpperCase().charCodeAt(0)
+        const needsShift = /[A-Z!@#$%^&*()_+{}|:"<>?]/.test(char)
+
+        if (needsShift) {
+          this.user32.keybd_event(0x10, 0, 0, 0) // Shift down
+        }
+
+        this.user32.keybd_event(vkCode, 0, 0, 0)
+        await this.sleep(10)
+        this.user32.keybd_event(vkCode, 0, 0x0002, 0)
+
+        if (needsShift) {
+          this.user32.keybd_event(0x10, 0, 0x0002, 0) // Shift up
+        }
+
+        await this.sleep(20)
+      }
+      return true
     }
     throw new Error("Platform not supported")
   }
@@ -160,19 +168,8 @@ Add-Type -AssemblyName System.Windows.Forms
     return 0x20 // Default to space
   }
 
-  async execPowerShell(script) {
-    try {
-      const { stdout, stderr } = await execPromise(
-        `powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`,
-        { timeout: 5000 },
-      )
-      if (stderr) {
-        throw new Error(stderr)
-      }
-      return stdout
-    } catch (error) {
-      throw new Error(`PowerShell execution failed: ${error.message}`)
-    }
+  sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }
 
