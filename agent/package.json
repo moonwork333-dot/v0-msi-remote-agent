@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Windows agent for MSI Remote Administration",
   "main": "service.js",
+  "bin": "service.js",
   "scripts": {
     "start": "node service.js",
     "build": "pkg . --targets node20-win-x64 --output dist/agent.exe"
