@@ -12,17 +12,18 @@
              InstallScope="perMachine" 
              InstallPrivileges="elevated"
              Description="MSI Remote Agent Service"
-             Comments="Remote monitoring and control agent" />
+             Comments="Remote monitoring and control agent"
+             Platform="x64" />
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <!-- Installation directory -->
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="ProgramFilesFolder">
+      <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="MSI Remote Agent">
           <!-- Consolidated into single component to avoid issues -->
-          <Component Id="MainFiles" Guid="87654321-4321-4321-4321-210987654321">
+          <Component Id="MainFiles" Guid="87654321-4321-4321-4321-210987654321" Win64="yes">
             <File Id="AgentExe" 
                   Source="..\agent\dist\agent.exe"
                   Name="agent.exe"
