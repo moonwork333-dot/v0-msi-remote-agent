@@ -1,9 +1,45 @@
 const WebSocket = require("ws")
 const screenshot = require("screenshot-desktop")
 const InputController = require("./input-control")
+const fs = require("fs")
+const path = require("path")
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || "ws://localhost:3000"
 const AGENT_ID = process.env.AGENT_ID || require("os").hostname()
+
+const LOG_DIR = process.env.PROGRAMDATA
+  ? path.join(process.env.PROGRAMDATA, "MSIRemoteAgent", "logs")
+  : path.join(process.cwd(), "logs")
+
+if (!fs.existsSync(LOG_DIR)) {
+  fs.mkdirSync(LOG_DIR, { recursive: true })
+}
+
+const LOG_FILE = path.join(LOG_DIR, `agent-${new Date().toISOString().split("T")[0]}.log`)
+
+function log(message) {
+  const timestamp = new Date().toISOString()
+  const logMessage = `[${timestamp}] ${message}\n`
+
+  // Write to console
+  console.log(message)
+
+  // Write to file
+  try {
+    fs.appendFileSync(LOG_FILE, logMessage)
+  } catch (error) {
+    console.error("Failed to write to log file:", error.message)
+  }
+}
+
+process.on("uncaughtException", (error) => {
+  log(`[FATAL] Uncaught exception: ${error.message}`)
+  log(error.stack)
+})
+
+process.on("unhandledRejection", (reason, promise) => {
+  log(`[ERROR] Unhandled rejection: ${reason}`)
+})
 
 class AgentService {
   constructor() {
@@ -15,7 +51,19 @@ class AgentService {
   }
 
   async start() {
-    console.log("[Agent] Starting MSI Remote Agent...")
+    log("[Agent] Starting MSI Remote Agent...")
+    log(`[Agent] Node version: ${process.version}`)
+    log(`[Agent] Platform: ${process.platform} ${process.arch}`)
+    log(`[Agent] Log file: ${LOG_FILE}`)
+
+    try {
+      await screenshot({ format: "png" })
+      log("[Agent] Screenshot module loaded successfully")
+    } catch (error) {
+      log(`[Agent] WARNING: Screenshot module failed: ${error.message}`)
+      log("[Agent] Service will run in limited mode (no screen capture)")
+    }
+
     this.isRunning = true
     this.connect()
   }
@@ -24,11 +72,11 @@ class AgentService {
     if (!this.isRunning) return
 
     try {
-      console.log("[Agent] Connecting to dashboard:", DASHBOARD_URL)
+      log("[Agent] Connecting to dashboard: " + DASHBOARD_URL)
       this.ws = new WebSocket(DASHBOARD_URL)
 
       this.ws.on("open", () => {
-        console.log("[Agent] Connected to dashboard")
+        log("[Agent] Connected to dashboard")
 
         this.ws.send(
           JSON.stringify({
@@ -47,12 +95,12 @@ class AgentService {
           const message = JSON.parse(data.toString())
           await this.handleMessage(message)
         } catch (error) {
-          console.error("[Agent] Error handling message:", error)
+          log("[Agent] Error handling message: " + error.message)
         }
       })
 
       this.ws.on("close", () => {
-        console.log("[Agent] Disconnected from dashboard")
+        log("[Agent] Disconnected from dashboard")
 
         if (this.remoteSessionActive) {
           this.remoteSessionActive = false
@@ -64,10 +112,10 @@ class AgentService {
       })
 
       this.ws.on("error", (error) => {
-        console.error("[Agent] WebSocket error:", error.message)
+        log("[Agent] WebSocket error: " + error.message)
       })
     } catch (error) {
-      console.error("[Agent] Connection error:", error)
+      log("[Agent] Connection error: " + error.message)
       if (this.isRunning) {
         setTimeout(() => this.connect(), this.reconnectInterval)
       }
@@ -107,7 +155,7 @@ class AgentService {
         break
 
       default:
-        console.log("[Agent] Unknown message type:", message.type)
+        log("[Agent] Unknown message type: " + message.type)
     }
   }
 
@@ -125,12 +173,12 @@ class AgentService {
         }),
       )
     } catch (error) {
-      console.error("[Agent] Screenshot error:", error)
+      log("[Agent] Screenshot error: " + error.message)
     }
   }
 
   stop() {
-    console.log("[Agent] Stopping agent service...")
+    log("[Agent] Stopping agent service...")
     this.isRunning = false
 
     if (this.ws) {
@@ -139,19 +187,25 @@ class AgentService {
   }
 }
 
-// Run as service
-const agent = new AgentService()
+log("[Agent] Service starting in 2 seconds...")
+setTimeout(() => {
+  const agent = new AgentService()
 
-process.on("SIGINT", () => {
-  agent.stop()
-  process.exit(0)
-})
+  process.on("SIGINT", () => {
+    agent.stop()
+    process.exit(0)
+  })
 
-process.on("SIGTERM", () => {
-  agent.stop()
-  process.exit(0)
-})
+  process.on("SIGTERM", () => {
+    agent.stop()
+    process.exit(0)
+  })
 
-agent.start()
+  agent.start().catch((error) => {
+    log(`[FATAL] Service start failed: ${error.message}`)
+    log(error.stack)
+    process.exit(1)
+  })
+}, 2000)
 
 module.exports = AgentService
