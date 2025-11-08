@@ -6,7 +6,7 @@
   "bin": "service.js",
   "scripts": {
     "start": "node service.js",
-    "build": "pkg . --targets node18-win-x64 --output dist/agent.exe"
+    "build": "nexe service.js --target windows-x64-18.16.0 --output dist/agent.exe"
   },
   "keywords": ["remote", "administration", "windows", "agent"],
   "author": "Your Name",
@@ -18,11 +18,6 @@
     "node-windows": "^1.0.0-beta.8"
   },
   "devDependencies": {
-    "pkg": "^5.8.1"
-  },
-  "pkg": {
-    "targets": ["node18-win-x64"],
-    "assets": ["node_modules/robotjs/build/**/*", "node_modules/screenshot-desktop/lib/**/*"],
-    "outputPath": "dist"
+    "nexe": "^4.0.0-rc.6"
   }
 }
