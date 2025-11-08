@@ -6,7 +6,7 @@
   "bin": "service.js",
   "scripts": {
     "start": "node service.js",
-    "build": "nexe service.js --target windows-x64-18.16.0 --output dist/agent.exe"
+    "build": "nexe service.js --target windows-x64-18.16.0 --output dist/agent.exe --build"
   },
   "keywords": ["remote", "administration", "windows", "agent"],
   "author": "Your Name",
