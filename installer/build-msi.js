@@ -59,7 +59,7 @@ try {
     fs.mkdirSync(outputDir, { recursive: true })
   }
 
-  execSync("light obj\\Product.wixobj -out output\\MSIRemoteAgent-1.0.0.msi -ext WixUIExtension", {
+  execSync("light obj\\Product.wixobj -out output\\MSIRemoteAgent-1.0.0.msi -ext WixUIExtension -sval", {
     cwd: __dirname,
     stdio: "inherit",
   })

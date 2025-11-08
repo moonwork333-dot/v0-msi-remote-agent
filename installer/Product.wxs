@@ -21,32 +21,21 @@
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER" Name="MSI Remote Agent">
-          <Component Id="AgentExecutable" Guid="87654321-4321-4321-4321-210987654321">
+          <!-- Consolidated into single component to avoid issues -->
+          <Component Id="MainFiles" Guid="87654321-4321-4321-4321-210987654321">
             <File Id="AgentExe" 
                   Source="..\agent\dist\agent.exe"
                   Name="agent.exe"
                   KeyPath="yes" 
                   Checksum="yes" />
-          </Component>
-
-          <Component Id="ConfigFile" Guid="11111111-2222-3333-4444-555555555555">
             <File Id="ConfigJson" 
-                  Source="..\installer\config.json" 
-                  KeyPath="yes" />
-          </Component>
-
-          <Component Id="ServiceInstaller" Guid="99999999-8888-7777-6666-555555555555">
+                  Source="..\installer\config.json" />
             <File Id="InstallServiceCmd" 
-                  Source="install-service.cmd" 
-                  KeyPath="yes" />
+                  Source="install-service.cmd" />
             <File Id="UninstallServiceCmd" 
                   Source="uninstall-service.cmd" />
-          </Component>
-          
-          <Component Id="ReadmeFile" Guid="AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE">
             <File Id="ReadmeTxt" 
-                  Source="README.txt" 
-                  KeyPath="yes" />
+                  Source="README.txt" />
           </Component>
         </Directory>
       </Directory>
@@ -54,11 +43,9 @@
       <Directory Id="ProgramMenuFolder">
         <Directory Id="ApplicationProgramsFolder" Name="MSI Remote Agent">
           <Component Id="ApplicationShortcut" Guid="22222222-3333-4444-5555-666666666666">
-            <!-- Added elevated shortcut for service installation -->
             <Shortcut Id="InstallServiceShortcut"
                      Name="Install Service (Run as Admin)"
                      Target="[INSTALLFOLDER]install-service.cmd"
-                     Arguments="&quot;[INSTALLFOLDER]&quot;"
                      Description="Install MSI Remote Agent Service - Must run as Administrator"
                      WorkingDirectory="INSTALLFOLDER" />
             <Shortcut Id="OpenInstallFolder"
@@ -81,13 +68,11 @@
         </Directory>
       </Directory>
       
-      <!-- Added desktop shortcut for easier access -->
       <Directory Id="DesktopFolder" Name="Desktop">
         <Component Id="DesktopShortcut" Guid="FFFFFFFF-EEEE-DDDD-CCCC-BBBBBBBBBBBB">
           <Shortcut Id="DesktopInstallServiceShortcut"
                    Name="Install MSI Agent Service"
                    Target="[INSTALLFOLDER]install-service.cmd"
-                   Arguments="&quot;[INSTALLFOLDER]&quot;"
                    Description="Install MSI Remote Agent Service - Right-click and Run as Administrator"
                    WorkingDirectory="INSTALLFOLDER" />
           <RegistryValue Root="HKCU" 
@@ -100,13 +85,10 @@
       </Directory>
     </Directory>
 
+    <!-- Simplified feature with single component reference -->
     <Feature Id="ProductFeature" Title="MSI Remote Agent" Level="1">
-      <ComponentRef Id="AgentExecutable" />
-      <ComponentRef Id="ConfigFile" />
-      <ComponentRef Id="ServiceInstaller" />
-      <ComponentRef Id="ReadmeFile" />
+      <ComponentRef Id="MainFiles" />
       <ComponentRef Id="ApplicationShortcut" />
-      <!-- Added desktop shortcut to feature -->
       <ComponentRef Id="DesktopShortcut" />
     </Feature>
 
