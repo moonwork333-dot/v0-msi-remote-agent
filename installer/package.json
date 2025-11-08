@@ -1,0 +1,13 @@
+{
+  "name": "msi-remote-agent-installer",
+  "version": "1.0.0",
+  "description": "MSI installer builder for Remote Agent",
+  "main": "build-msi.js",
+  "scripts": {
+    "build": "node build-msi.js"
+  },
+  "keywords": ["installer", "msi", "wix"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {}
+}
