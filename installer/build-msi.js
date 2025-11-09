@@ -68,14 +68,12 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
     </Directory>
 
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-      <!-- Agent Executable -->
-      <Component Id="AgentExecutable" Guid="*">
+      <Component Id="AgentExecutable" Guid="{B1C2D3E4-F5A6-4B5C-8D7E-9F0A1B2C3D4E}">
         <File Id="AgentExe" 
+              Name="agent.exe"
               Source="${CONFIG.agentExePath.replace(/\\/g, "\\\\")}" 
-              KeyPath="yes" 
-              Vital="yes" />
+              KeyPath="yes" />
         
-        <!-- Install Windows Service without waiting -->
         <ServiceInstall Id="ServiceInstaller"
                         Name="MSIRemoteAgent"
                         DisplayName="MSI Remote Agent Service"
@@ -86,7 +84,6 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
                         ErrorControl="normal"
                         Arguments="--service" />
         
-        <!-- Removed Start="install" to prevent service start during installation -->
         <ServiceControl Id="ServiceControl"
                         Name="MSIRemoteAgent"
                         Stop="both"
@@ -94,11 +91,11 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
                         Wait="no" />
       </Component>
       
-      <Component Id="ConfigJson" Guid="*">
-        <File Id="ConfigFile" 
+      <Component Id="ConfigJson" Guid="{C2D3E4F5-A6B7-4C5D-8E7F-9A0B1C2D3E4F}">
+        <File Id="ConfigFile"
+              Name="config.json"
               Source="${CONFIG.configJsonPath.replace(/\\/g, "\\\\")}" 
-              KeyPath="yes" 
-              Vital="yes" />
+              KeyPath="yes" />
       </Component>
     </ComponentGroup>
 
