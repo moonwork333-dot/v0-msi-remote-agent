@@ -4,15 +4,15 @@ const { execSync } = require("child_process")
 
 const CONFIG = {
   productName: "MSI Remote Agent",
-  productVersion: "1.0.0",
+  productVersion: "1.0.1", // Incremented version
   manufacturer: "Your Company Name",
-  upgradeCode: "{12345678-1234-1234-1234-123456789012}", // Generate unique GUID for your product
+  upgradeCode: "{12345678-1234-1234-1234-123456789012}",
   agentExePath: path.resolve(__dirname, "../agent/dist/agent.exe"),
   configJsonPath: path.resolve(__dirname, "../agent/config.json"),
   outputDir: path.resolve(__dirname, "output"),
   wxsFile: path.resolve(__dirname, "installer.wxs"),
   wixobjFile: path.resolve(__dirname, "installer.wixobj"),
-  msiFile: path.resolve(__dirname, "output", "MSIRemoteAgent-1.0.0.msi"),
+  msiFile: path.resolve(__dirname, "output", "MSIRemoteAgent-1.0.1.msi"), // Updated filename
 }
 
 // Ensure output directory exists
@@ -35,7 +35,7 @@ if (!fs.existsSync(CONFIG.configJsonPath)) {
 
 // Generate WiX XML
 const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
   <Product Id="*" 
            Name="${CONFIG.productName}" 
            Language="1033" 
@@ -59,11 +59,17 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
 
     <Feature Id="ProductFeature" Title="${CONFIG.productName}" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
+      <ComponentGroupRef Id="CleanupComponents" />
     </Feature>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER" Name="MSI Remote Agent" />
+      </Directory>
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="APPDATAFOLDER" Name="MSIRemoteAgent">
+          <Directory Id="LOGSFOLDER" Name="logs" />
+        </Directory>
       </Directory>
     </Directory>
 
@@ -78,25 +84,55 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
           DisplayName="MSI Remote Agent Service"
           Description="Remote administration agent for MSI systems"
           Type="ownProcess"
-          Start="demand"
+          Start="auto"
           Account="LocalSystem"
           ErrorControl="normal"
           Interactive="no"
-          Vital="no" />
+          Arguments="--service"
+          Vital="yes">
+          <util:ServiceConfig
+            FirstFailureActionType="restart"
+            SecondFailureActionType="restart"
+            ThirdFailureActionType="restart"
+            RestartServiceDelayInSeconds="60" />
+        </ServiceInstall>
         
         <ServiceControl
-          Id="StopService"
+          Id="StartService"
           Name="MSIRemoteAgent"
+          Start="install"
           Stop="both"
           Remove="uninstall"
           Wait="yes" />
       </Component>
       
-      <!-- Added config.json component -->
       <Component Id="ConfigJson" Guid="*">
         <File Id="ConfigFile" Source="${CONFIG.configJsonPath.replace(/\\/g, "\\\\")}" KeyPath="yes" />
       </Component>
     </ComponentGroup>
+
+    <!-- Added cleanup components to remove old nssm.exe and fix service -->
+    <ComponentGroup Id="CleanupComponents" Directory="INSTALLFOLDER">
+      <Component Id="CleanupOldFiles" Guid="*" Permanent="no">
+        <CreateFolder />
+        <RemoveFile Id="RemoveNSSM" Name="nssm.exe" On="install" />
+        <RemoveFile Id="RemoveAgentLog" Name="agent.log" On="install" />
+        <RemoveFile Id="RemoveServiceOutput" Name="service-output.log" On="install" />
+        <RemoveFile Id="RemoveServiceError" Name="service-error.log" On="install" />
+      </Component>
+    </ComponentGroup>
+    
+    <!-- Custom actions to fix service configuration before install -->
+    <CustomAction Id="StopOldService" 
+                  Execute="deferred" 
+                  Impersonate="no"
+                  Return="ignore"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand='cmd.exe /c "sc stop MSIRemoteAgent & sc delete MSIRemoteAgent"' />
+    
+    <InstallExecuteSequence>
+      <Custom Action="StopOldService" Before="InstallFiles">NOT REMOVE</Custom>
+    </InstallExecuteSequence>
 
   </Product>
 </Wix>`
@@ -107,12 +143,12 @@ console.log("✓ Generated WiX source file:", CONFIG.wxsFile)
 try {
   // Compile WiX source to object file
   console.log("\n→ Compiling WiX source...")
-  execSync(`candle.exe "${CONFIG.wxsFile}" -out "${CONFIG.wixobjFile}"`, { stdio: "inherit" })
+  execSync(`candle.exe "${CONFIG.wxsFile}" -ext WixUtilExtension -out "${CONFIG.wixobjFile}"`, { stdio: "inherit" })
   console.log("✓ WiX compilation successful")
 
   // Link to create MSI
   console.log("\n→ Linking MSI installer...")
-  execSync(`light.exe "${CONFIG.wixobjFile}" -out "${CONFIG.msiFile}"`, { stdio: "inherit" })
+  execSync(`light.exe "${CONFIG.wixobjFile}" -ext WixUtilExtension -out "${CONFIG.msiFile}"`, { stdio: "inherit" })
   console.log("✓ MSI created successfully:", CONFIG.msiFile)
 
   // Sign the MSI if certificate is provided
