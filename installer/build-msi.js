@@ -8,6 +8,7 @@ const CONFIG = {
   manufacturer: "Your Company Name",
   upgradeCode: "{12345678-1234-1234-1234-123456789012}", // Generate unique GUID for your product
   agentExePath: path.resolve(__dirname, "../agent/dist/agent.exe"),
+  configJsonPath: path.resolve(__dirname, "../agent/config.json"),
   outputDir: path.resolve(__dirname, "output"),
   wxsFile: path.resolve(__dirname, "installer.wxs"),
   wixobjFile: path.resolve(__dirname, "installer.wixobj"),
@@ -23,6 +24,12 @@ if (!fs.existsSync(CONFIG.outputDir)) {
 if (!fs.existsSync(CONFIG.agentExePath)) {
   console.error("Error: agent.exe not found at:", CONFIG.agentExePath)
   console.error("Please build the agent first: cd agent && npm run build")
+  process.exit(1)
+}
+
+if (!fs.existsSync(CONFIG.configJsonPath)) {
+  console.error("Error: config.json not found at:", CONFIG.configJsonPath)
+  console.error("Please create agent/config.json with dashboardUrl configuration")
   process.exit(1)
 }
 
@@ -56,7 +63,7 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
-        <Directory Id="INSTALLFOLDER" Name="MSIRemoteAgent" />
+        <Directory Id="INSTALLFOLDER" Name="MSI Remote Agent" />
       </Directory>
     </Directory>
 
@@ -83,6 +90,11 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
           Stop="both"
           Remove="uninstall"
           Wait="yes" />
+      </Component>
+      
+      <!-- Added config.json component -->
+      <Component Id="ConfigJson" Guid="*">
+        <File Id="ConfigFile" Source="${CONFIG.configJsonPath.replace(/\\/g, "\\\\")}" KeyPath="yes" />
       </Component>
     </ComponentGroup>
 
