@@ -5,7 +5,22 @@ const fs = require("fs")
 const path = require("path")
 const Service = require("node-windows").Service
 
-const DASHBOARD_URL = process.env.DASHBOARD_URL || "ws://localhost:3000"
+let CONFIG = {
+  dashboardUrl: "ws://localhost:3000",
+  reconnectInterval: 5000,
+}
+
+try {
+  const configPath = path.join(__dirname, "config.json")
+  if (fs.existsSync(configPath)) {
+    const configFile = fs.readFileSync(configPath, "utf8")
+    CONFIG = { ...CONFIG, ...JSON.parse(configFile) }
+  }
+} catch (error) {
+  console.error("Failed to load config.json:", error.message)
+}
+
+const DASHBOARD_URL = process.env.DASHBOARD_URL || CONFIG.dashboardUrl
 const AGENT_ID = process.env.AGENT_ID || require("os").hostname()
 
 const LOG_DIR = process.env.PROGRAMDATA
@@ -45,7 +60,7 @@ const IS_WINDOWS_SERVICE = process.platform === "win32" && !process.env.SESSIONN
 class AgentService {
   constructor() {
     this.ws = null
-    this.reconnectInterval = 5000
+    this.reconnectInterval = CONFIG.reconnectInterval || 5000
     this.isRunning = false
     this.inputController = new InputController()
     this.remoteSessionActive = false
