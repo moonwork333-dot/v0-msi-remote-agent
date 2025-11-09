@@ -52,14 +52,12 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <!-- Add condition to require administrator privileges -->
     <Condition Message="You must be an administrator to install this product.">
       Privileged
     </Condition>
 
     <Feature Id="ProductFeature" Title="${CONFIG.productName}" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
-      <ComponentGroupRef Id="CleanupComponents" />
     </Feature>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
@@ -77,7 +75,7 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
       <Component Id="AgentExecutable" Guid="*">
         <File Id="AgentExe" Source="${CONFIG.agentExePath.replace(/\\/g, "\\\\")}" KeyPath="yes" />
         
-        <!-- Install as Windows Service -->
+        <!-- Simplified service installation without custom actions -->
         <ServiceInstall
           Id="MSIRemoteAgentService"
           Name="MSIRemoteAgent"
@@ -89,13 +87,7 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
           ErrorControl="normal"
           Interactive="no"
           Arguments="--service"
-          Vital="yes">
-          <util:ServiceConfig
-            FirstFailureActionType="restart"
-            SecondFailureActionType="restart"
-            ThirdFailureActionType="restart"
-            RestartServiceDelayInSeconds="60" />
-        </ServiceInstall>
+          Vital="yes" />
         
         <ServiceControl
           Id="StartService"
@@ -104,35 +96,20 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
           Stop="both"
           Remove="uninstall"
           Wait="yes" />
+          
+        <!-- Added service failure recovery directly in ServiceConfig -->
+        <util:ServiceConfig
+          ServiceName="MSIRemoteAgent"
+          FirstFailureActionType="restart"
+          SecondFailureActionType="restart"
+          ThirdFailureActionType="restart"
+          RestartServiceDelayInSeconds="60" />
       </Component>
       
       <Component Id="ConfigJson" Guid="*">
         <File Id="ConfigFile" Source="${CONFIG.configJsonPath.replace(/\\/g, "\\\\")}" KeyPath="yes" />
       </Component>
     </ComponentGroup>
-
-    <!-- Added cleanup components to remove old nssm.exe and fix service -->
-    <ComponentGroup Id="CleanupComponents" Directory="INSTALLFOLDER">
-      <Component Id="CleanupOldFiles" Guid="*" Permanent="no">
-        <CreateFolder />
-        <RemoveFile Id="RemoveNSSM" Name="nssm.exe" On="install" />
-        <RemoveFile Id="RemoveAgentLog" Name="agent.log" On="install" />
-        <RemoveFile Id="RemoveServiceOutput" Name="service-output.log" On="install" />
-        <RemoveFile Id="RemoveServiceError" Name="service-error.log" On="install" />
-      </Component>
-    </ComponentGroup>
-    
-    <!-- Custom actions to fix service configuration before install -->
-    <CustomAction Id="StopOldService" 
-                  Execute="deferred" 
-                  Impersonate="no"
-                  Return="ignore"
-                  Directory="INSTALLFOLDER"
-                  ExeCommand='cmd.exe /c "sc stop MSIRemoteAgent & sc delete MSIRemoteAgent"' />
-    
-    <InstallExecuteSequence>
-      <Custom Action="StopOldService" Before="InstallFiles">NOT REMOVE</Custom>
-    </InstallExecuteSequence>
 
   </Product>
 </Wix>`
