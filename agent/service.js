@@ -148,28 +148,78 @@ class AgentService {
         break
 
       case "start-remote-session":
+        log("[Agent] Remote session started")
         this.remoteSessionActive = true
         break
 
       case "end-remote-session":
+        log("[Agent] Remote session ended")
         this.remoteSessionActive = false
         break
 
       case "mouse-move":
         if (this.inputController.isAvailable()) {
-          this.inputController.moveMouse(message.x, message.y)
+          log(`[Agent] Mouse move received: (${message.x}, ${message.y})`)
+          if (typeof message.x === "number" && typeof message.y === "number") {
+            this.inputController.moveMouse(Math.floor(message.x), Math.floor(message.y))
+          } else {
+            log(`[Agent] Invalid mouse coordinates: x=${message.x}, y=${message.y}`)
+          }
+        } else {
+          log("[Agent] Mouse move ignored - input control unavailable")
         }
         break
 
       case "mouse-click":
         if (this.inputController.isAvailable()) {
-          this.inputController.mouseClick(message.button)
+          log(`[Agent] Mouse click received: ${message.button || "left"}`)
+          this.inputController.mouseClick(message.button || "left")
+        } else {
+          log("[Agent] Mouse click ignored - input control unavailable")
+        }
+        break
+
+      case "mouse-double-click":
+        if (this.inputController.isAvailable()) {
+          log(`[Agent] Mouse double-click received: ${message.button || "left"}`)
+          this.inputController.mouseDoubleClick(message.button || "left")
+        }
+        break
+
+      case "mouse-down":
+        if (this.inputController.isAvailable()) {
+          log(`[Agent] Mouse down received: ${message.button || "left"}`)
+          this.inputController.mouseToggle(true, message.button || "left")
+        }
+        break
+
+      case "mouse-up":
+        if (this.inputController.isAvailable()) {
+          log(`[Agent] Mouse up received: ${message.button || "left"}`)
+          this.inputController.mouseToggle(false, message.button || "left")
+        }
+        break
+
+      case "mouse-scroll":
+        if (this.inputController.isAvailable()) {
+          log(`[Agent] Mouse scroll received: (${message.x}, ${message.y})`)
+          this.inputController.mouseScroll(message.x || 0, message.y || 0)
         }
         break
 
       case "key-press":
         if (this.inputController.isAvailable()) {
+          log(`[Agent] Key press received: ${message.key}`)
           this.inputController.typeString(message.key)
+        } else {
+          log("[Agent] Key press ignored - input control unavailable")
+        }
+        break
+
+      case "key-tap":
+        if (this.inputController.isAvailable()) {
+          log(`[Agent] Key tap received: ${message.key}`)
+          this.inputController.keyTap(message.key, message.modifiers || [])
         }
         break
 
@@ -183,16 +233,36 @@ class AgentService {
       const img = await screenshot({ format: "png" })
       const base64 = img.toString("base64")
 
+      const robotjs = require("robotjs")
+      let screenSize = null
+      try {
+        screenSize = robotjs.getScreenSize()
+      } catch (err) {
+        // Screen size unavailable
+      }
+
       this.ws.send(
         JSON.stringify({
           type: "screenshot",
           agentId: AGENT_ID,
           data: base64,
           timestamp: Date.now(),
+          screenSize: screenSize,
         }),
       )
     } catch (error) {
       log("[Agent] Screenshot error: " + error.message)
+
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(
+          JSON.stringify({
+            type: "screenshot-error",
+            agentId: AGENT_ID,
+            error: error.message,
+            timestamp: Date.now(),
+          }),
+        )
+      }
     }
   }
 
