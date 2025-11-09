@@ -36,6 +36,18 @@ jobs:
         env:
           npm_config_msvs_version: '2022'
 
+      - name: Generate config.json
+        working-directory: ./agent
+        shell: powershell
+        run: |
+          $config = @{
+            dashboardUrl = "wss://v0-msi-remote-agent.vercel.app"
+            reconnectInterval = 5000
+          } | ConvertTo-Json
+          $config | Out-File -FilePath "config.json" -Encoding utf8
+          Write-Host "config.json generated:"
+          Get-Content "config.json"
+
       - name: Cache nexe binaries
         uses: actions/cache@v3
         with:
