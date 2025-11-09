@@ -86,10 +86,9 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
                         ErrorControl="normal"
                         Arguments="--service" />
         
-        <!-- Removed Wait="yes" to prevent installer hang -->
+        <!-- Removed Start="install" to prevent service start during installation -->
         <ServiceControl Id="ServiceControl"
                         Name="MSIRemoteAgent"
-                        Start="install"
                         Stop="both"
                         Remove="uninstall"
                         Wait="no" />
