@@ -6,14 +6,14 @@ const path = require("path")
 const Service = require("node-windows").Service
 
 let CONFIG = {
-  dashboardUrl: "ws://localhost:3000",
+  dashboardUrl: "wss://v0-msi-remote-agent.vercel.app", // Default to production server
   reconnectInterval: 5000,
 }
 
 const possibleConfigPaths = [
   path.join(path.dirname(process.execPath), "config.json"), // Next to agent.exe
   path.join(process.cwd(), "config.json"), // Current working directory
-  path.join(__dirname, "config.json"), // Inside pkg bundle (unlikely to work)
+  path.join(__dirname, "config.json"), // Inside pkg bundle
 ]
 
 let configLoaded = false
@@ -21,21 +21,20 @@ for (const configPath of possibleConfigPaths) {
   try {
     if (fs.existsSync(configPath)) {
       const configFile = fs.readFileSync(configPath, "utf8")
-      CONFIG = { ...CONFIG, ...JSON.parse(configFile) }
+      const loadedConfig = JSON.parse(configFile)
+      CONFIG = { ...CONFIG, ...loadedConfig }
       console.log(`[Agent] Loaded config from: ${configPath}`)
       console.log(`[Agent] Dashboard URL from config: ${CONFIG.dashboardUrl}`)
       configLoaded = true
       break
     }
   } catch (error) {
-    console.error(`[Agent] Failed to load config from ${configPath}:`, error.message)
+    // Silently continue to next path
   }
 }
 
 if (!configLoaded) {
-  console.log(`[Agent] No config.json found. Checked paths:`)
-  possibleConfigPaths.forEach((p) => console.log(`  - ${p}`))
-  console.log(`[Agent] Using default config: ${JSON.stringify(CONFIG)}`)
+  console.log(`[Agent] No external config.json found. Using production server: ${CONFIG.dashboardUrl}`)
 }
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || CONFIG.dashboardUrl
