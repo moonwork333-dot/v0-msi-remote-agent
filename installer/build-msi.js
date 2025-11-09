@@ -75,7 +75,7 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
               KeyPath="yes" 
               Vital="yes" />
         
-        <!-- Install Windows Service -->
+        <!-- Install Windows Service without waiting -->
         <ServiceInstall Id="ServiceInstaller"
                         Name="MSIRemoteAgent"
                         DisplayName="MSI Remote Agent Service"
@@ -86,12 +86,13 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
                         ErrorControl="normal"
                         Arguments="--service" />
         
+        <!-- Removed Wait="yes" to prevent installer hang -->
         <ServiceControl Id="ServiceControl"
                         Name="MSIRemoteAgent"
                         Start="install"
                         Stop="both"
                         Remove="uninstall"
-                        Wait="yes" />
+                        Wait="no" />
       </Component>
       
       <Component Id="ConfigJson" Guid="*">
