@@ -115,7 +115,8 @@ try {
   console.log("✓ WiX compilation successful")
 
   console.log("\n→ Linking MSI installer...")
-  execSync(`light.exe "${CONFIG.wixobjFile}" -out "${CONFIG.msiFile}"`, { stdio: "inherit" })
+  const agentDir = path.resolve(__dirname, "..")
+  execSync(`light.exe "${CONFIG.wixobjFile}" -b "${agentDir}" -out "${CONFIG.msiFile}"`, { stdio: "inherit" })
   console.log("✓ MSI created successfully:", CONFIG.msiFile)
 
   console.log("\n→ Verifying MSI contents...")
