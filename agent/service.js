@@ -5,6 +5,8 @@ const fs = require("fs")
 const path = require("path")
 const Service = require("node-windows").Service
 
+const AGENT_VERSION = "1.0.1"
+
 let CONFIG = {
   dashboardUrl: "wss://v0-msi-remote-agent.vercel.app", // Default to production server
   reconnectInterval: 5000,
@@ -312,8 +314,10 @@ class AgentService {
   }
 }
 
+console.log(`[Agent] MSI Remote Agent v${AGENT_VERSION}`)
+console.log(`[Agent] Starting ${IS_WINDOWS_SERVICE ? "as Windows Service" : "in console mode"}...`)
+
 if (IS_WINDOWS_SERVICE) {
-  log("[Agent] Detected Windows Service mode - starting immediately...")
   const agent = new AgentService()
 
   process.on("SIGINT", () => {
@@ -332,7 +336,6 @@ if (IS_WINDOWS_SERVICE) {
     process.exit(1)
   })
 } else {
-  log("[Agent] Detected console mode - starting in 2 seconds...")
   setTimeout(() => {
     const agent = new AgentService()
 
