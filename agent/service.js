@@ -7,6 +7,74 @@ const Service = require("node-windows").Service
 
 const AGENT_VERSION = "1.0.1"
 
+const args = process.argv.slice(2)
+const command = args[0]
+
+if (command === "--install") {
+  installService()
+  process.exit(0)
+} else if (command === "--uninstall") {
+  uninstallService()
+  process.exit(0)
+}
+
+function installService() {
+  console.log("[Installer] Installing MSI Remote Agent service...")
+
+  const svc = new Service({
+    name: "MSIRemoteAgent",
+    description: "MSI Remote Agent - System Monitoring and Control",
+    script: process.execPath,
+    nodeOptions: [],
+    env: {
+      name: "NODE_ENV",
+      value: "production",
+    },
+  })
+
+  svc.on("install", () => {
+    console.log("[Installer] Service installed successfully")
+    console.log("[Installer] Starting service...")
+    svc.start()
+  })
+
+  svc.on("start", () => {
+    console.log("[Installer] Service started successfully")
+  })
+
+  svc.on("alreadyinstalled", () => {
+    console.log("[Installer] Service already installed, restarting...")
+    svc.restart()
+  })
+
+  svc.on("error", (err) => {
+    console.error("[Installer] Service installation error:", err.message)
+    process.exit(1)
+  })
+
+  svc.install()
+}
+
+function uninstallService() {
+  console.log("[Installer] Uninstalling MSI Remote Agent service...")
+
+  const svc = new Service({
+    name: "MSIRemoteAgent",
+    script: process.execPath,
+  })
+
+  svc.on("uninstall", () => {
+    console.log("[Installer] Service uninstalled successfully")
+  })
+
+  svc.on("error", (err) => {
+    console.error("[Installer] Service uninstallation error:", err.message)
+    process.exit(1)
+  })
+
+  svc.uninstall()
+}
+
 let CONFIG = {
   dashboardUrl: "wss://v0-msi-remote-agent.vercel.app", // Default to production server
   reconnectInterval: 5000,
@@ -314,6 +382,7 @@ class AgentService {
   }
 }
 
+// Moved console logs to after command-line argument checks
 console.log(`[Agent] MSI Remote Agent v${AGENT_VERSION}`)
 console.log(`[Agent] Starting ${IS_WINDOWS_SERVICE ? "as Windows Service" : "in console mode"}...`)
 
