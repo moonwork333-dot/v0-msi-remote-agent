@@ -118,6 +118,35 @@ try {
   execSync(`light.exe "${CONFIG.wixobjFile}" -out "${CONFIG.msiFile}"`, { stdio: "inherit" })
   console.log("✓ MSI created successfully:", CONFIG.msiFile)
 
+  console.log("\n→ Verifying MSI contents...")
+  try {
+    // Extract MSI file table to verify embedded files
+    const msiInfo = execSync(
+      `msiexec /a "${CONFIG.msiFile}" /qn TARGETDIR="${path.join(CONFIG.outputDir, "verify")}"`,
+      { encoding: "utf8" },
+    )
+
+    const verifyDir = path.join(CONFIG.outputDir, "verify", "MSI Remote Agent")
+    if (fs.existsSync(path.join(verifyDir, "agent.exe"))) {
+      console.log("✓ agent.exe is embedded in MSI")
+    } else {
+      console.error("✗ agent.exe is NOT embedded in MSI - WiX packaging failed!")
+    }
+
+    if (fs.existsSync(path.join(verifyDir, "config.json"))) {
+      console.log("✓ config.json is embedded in MSI")
+    } else {
+      console.error("✗ config.json is NOT embedded in MSI - WiX packaging failed!")
+    }
+
+    // Clean up verification directory
+    if (fs.existsSync(path.join(CONFIG.outputDir, "verify"))) {
+      fs.rmSync(path.join(CONFIG.outputDir, "verify"), { recursive: true, force: true })
+    }
+  } catch (verifyError) {
+    console.warn("⚠ Could not verify MSI contents:", verifyError.message)
+  }
+
   // Sign the MSI if certificate is provided
   if (process.env.CERT_PATH && process.env.CERT_PASSWORD) {
     console.log("\n→ Signing MSI installer...")
