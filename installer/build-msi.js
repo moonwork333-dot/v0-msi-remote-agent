@@ -4,7 +4,7 @@ const { execSync } = require("child_process")
 
 const CONFIG = {
   productName: "MSI Remote Agent",
-  productVersion: "1.0.1", // Incremented version
+  productVersion: "1.0.1",
   manufacturer: "Your Company Name",
   upgradeCode: "{12345678-1234-1234-1234-123456789012}",
   agentExePath: path.resolve(__dirname, "../agent/dist/agent.exe"),
@@ -12,7 +12,7 @@ const CONFIG = {
   outputDir: path.resolve(__dirname, "output"),
   wxsFile: path.resolve(__dirname, "installer.wxs"),
   wixobjFile: path.resolve(__dirname, "installer.wixobj"),
-  msiFile: path.resolve(__dirname, "output", "MSIRemoteAgent-1.0.1.msi"), // Updated filename
+  msiFile: path.resolve(__dirname, "output", "MSIRemoteAgent-1.0.1.msi"),
 }
 
 // Ensure output directory exists
@@ -33,9 +33,8 @@ if (!fs.existsSync(CONFIG.configJsonPath)) {
   process.exit(1)
 }
 
-// Generate WiX XML
 const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Id="*" 
            Name="${CONFIG.productName}" 
            Language="1033" 
@@ -58,7 +57,28 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
 
     <Feature Id="ProductFeature" Title="${CONFIG.productName}" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
+      <ComponentGroupRef Id="AppDataComponents" />
     </Feature>
+
+    <!-- Custom action to install service using agent.exe --install -->
+    <CustomAction Id="InstallServiceAction"
+                  Directory="INSTALLFOLDER"
+                  Execute="deferred"
+                  Impersonate="no"
+                  ExeCommand="[INSTALLFOLDER]agent.exe --install"
+                  Return="check" />
+
+    <CustomAction Id="UninstallServiceAction"
+                  Directory="INSTALLFOLDER"
+                  Execute="deferred"
+                  Impersonate="no"
+                  ExeCommand="[INSTALLFOLDER]agent.exe --uninstall"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="UninstallServiceAction" Before="RemoveFiles">REMOVE="ALL"</Custom>
+      <Custom Action="InstallServiceAction" After="InstallFiles">NOT REMOVE</Custom>
+    </InstallExecuteSequence>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
@@ -74,40 +94,16 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
       <Component Id="AgentExecutable" Guid="*">
         <File Id="AgentExe" Source="${CONFIG.agentExePath.replace(/\\/g, "\\\\")}" KeyPath="yes" />
-        
-        <!-- Simplified service installation without custom actions -->
-        <ServiceInstall
-          Id="MSIRemoteAgentService"
-          Name="MSIRemoteAgent"
-          DisplayName="MSI Remote Agent Service"
-          Description="Remote administration agent for MSI systems"
-          Type="ownProcess"
-          Start="auto"
-          Account="LocalSystem"
-          ErrorControl="normal"
-          Interactive="no"
-          Arguments="--service"
-          Vital="yes" />
-        
-        <ServiceControl
-          Id="StartService"
-          Name="MSIRemoteAgent"
-          Start="install"
-          Stop="both"
-          Remove="uninstall"
-          Wait="yes" />
-          
-        <!-- Added service failure recovery directly in ServiceConfig -->
-        <util:ServiceConfig
-          ServiceName="MSIRemoteAgent"
-          FirstFailureActionType="restart"
-          SecondFailureActionType="restart"
-          ThirdFailureActionType="restart"
-          RestartServiceDelayInSeconds="60" />
       </Component>
       
       <Component Id="ConfigJson" Guid="*">
         <File Id="ConfigFile" Source="${CONFIG.configJsonPath.replace(/\\/g, "\\\\")}" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="AppDataComponents" Directory="LOGSFOLDER">
+      <Component Id="LogsFolder" Guid="*">
+        <CreateFolder />
       </Component>
     </ComponentGroup>
 
@@ -120,12 +116,12 @@ console.log("✓ Generated WiX source file:", CONFIG.wxsFile)
 try {
   // Compile WiX source to object file
   console.log("\n→ Compiling WiX source...")
-  execSync(`candle.exe "${CONFIG.wxsFile}" -ext WixUtilExtension -out "${CONFIG.wixobjFile}"`, { stdio: "inherit" })
+  execSync(`candle.exe "${CONFIG.wxsFile}" -out "${CONFIG.wixobjFile}"`, { stdio: "inherit" })
   console.log("✓ WiX compilation successful")
 
   // Link to create MSI
   console.log("\n→ Linking MSI installer...")
-  execSync(`light.exe "${CONFIG.wixobjFile}" -ext WixUtilExtension -out "${CONFIG.msiFile}"`, { stdio: "inherit" })
+  execSync(`light.exe "${CONFIG.wixobjFile}" -out "${CONFIG.msiFile}"`, { stdio: "inherit" })
   console.log("✓ MSI created successfully:", CONFIG.msiFile)
 
   // Sign the MSI if certificate is provided
@@ -143,7 +139,6 @@ try {
     }
   } else {
     console.log("\n⚠ No certificate provided - MSI will be unsigned")
-    console.log("Set CERT_PATH and CERT_PASSWORD environment variables to enable signing")
   }
 
   // Clean up intermediate files
