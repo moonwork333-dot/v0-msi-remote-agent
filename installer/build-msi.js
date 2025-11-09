@@ -57,10 +57,9 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
 
     <Feature Id="ProductFeature" Title="${CONFIG.productName}" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
-      <ComponentGroupRef Id="AppDataComponents" />
+      <ComponentRef Id="LogsFolder" />
     </Feature>
 
-    <!-- Custom action to install service using agent.exe with install flag -->
     <CustomAction Id="InstallServiceAction"
                   Directory="INSTALLFOLDER"
                   Execute="deferred"
@@ -101,11 +100,10 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
       </Component>
     </ComponentGroup>
 
-    <ComponentGroup Id="AppDataComponents" Directory="LOGSFOLDER">
-      <Component Id="LogsFolder" Guid="*">
-        <CreateFolder />
-      </Component>
-    </ComponentGroup>
+    <!-- Use explicit GUID for logs folder component since it uses CreateFolder -->
+    <Component Id="LogsFolder" Directory="LOGSFOLDER" Guid="{A1B2C3D4-E5F6-4A5B-8C7D-9E8F7A6B5C4D}">
+      <CreateFolder />
+    </Component>
 
   </Product>
 </Wix>`
