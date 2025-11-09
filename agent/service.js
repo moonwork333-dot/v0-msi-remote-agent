@@ -10,14 +10,32 @@ let CONFIG = {
   reconnectInterval: 5000,
 }
 
-try {
-  const configPath = path.join(__dirname, "config.json")
-  if (fs.existsSync(configPath)) {
-    const configFile = fs.readFileSync(configPath, "utf8")
-    CONFIG = { ...CONFIG, ...JSON.parse(configFile) }
+const possibleConfigPaths = [
+  path.join(path.dirname(process.execPath), "config.json"), // Next to agent.exe
+  path.join(process.cwd(), "config.json"), // Current working directory
+  path.join(__dirname, "config.json"), // Inside pkg bundle (unlikely to work)
+]
+
+let configLoaded = false
+for (const configPath of possibleConfigPaths) {
+  try {
+    if (fs.existsSync(configPath)) {
+      const configFile = fs.readFileSync(configPath, "utf8")
+      CONFIG = { ...CONFIG, ...JSON.parse(configFile) }
+      console.log(`[Agent] Loaded config from: ${configPath}`)
+      console.log(`[Agent] Dashboard URL from config: ${CONFIG.dashboardUrl}`)
+      configLoaded = true
+      break
+    }
+  } catch (error) {
+    console.error(`[Agent] Failed to load config from ${configPath}:`, error.message)
   }
-} catch (error) {
-  console.error("Failed to load config.json:", error.message)
+}
+
+if (!configLoaded) {
+  console.log(`[Agent] No config.json found. Checked paths:`)
+  possibleConfigPaths.forEach((p) => console.log(`  - ${p}`))
+  console.log(`[Agent] Using default config: ${JSON.stringify(CONFIG)}`)
 }
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || CONFIG.dashboardUrl
