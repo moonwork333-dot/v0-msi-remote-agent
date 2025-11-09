@@ -60,7 +60,7 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
       <ComponentGroupRef Id="AppDataComponents" />
     </Feature>
 
-    <!-- Custom action to install service using agent.exe --install -->
+    <!-- Custom action to install service using agent.exe with install flag -->
     <CustomAction Id="InstallServiceAction"
                   Directory="INSTALLFOLDER"
                   Execute="deferred"
