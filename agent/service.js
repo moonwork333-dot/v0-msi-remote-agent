@@ -3,6 +3,7 @@ const screenshot = require("screenshot-desktop")
 const InputController = require("./input-control")
 const fs = require("fs")
 const path = require("path")
+const Service = require("node-windows").Service
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || "ws://localhost:3000"
 const AGENT_ID = process.env.AGENT_ID || require("os").hostname()
@@ -21,10 +22,8 @@ function log(message) {
   const timestamp = new Date().toISOString()
   const logMessage = `[${timestamp}] ${message}\n`
 
-  // Write to console
   console.log(message)
 
-  // Write to file
   try {
     fs.appendFileSync(LOG_FILE, logMessage)
   } catch (error) {
@@ -41,6 +40,8 @@ process.on("unhandledRejection", (reason, promise) => {
   log(`[ERROR] Unhandled rejection: ${reason}`)
 })
 
+const IS_WINDOWS_SERVICE = process.platform === "win32" && !process.env.SESSIONNAME
+
 class AgentService {
   constructor() {
     this.ws = null
@@ -51,9 +52,15 @@ class AgentService {
   }
 
   async start() {
-    log("[Agent] Starting MSI Remote Agent...")
+    log("[Agent] Starting MSI Remote Agent Service...")
+    log(`[Agent] Agent ID: ${AGENT_ID}`)
+    log(`[Agent] Server URL: ${DASHBOARD_URL}`)
     log(`[Agent] Node version: ${process.version}`)
     log(`[Agent] Platform: ${process.platform} ${process.arch}`)
+    log(`[Agent] Is Windows Service: ${IS_WINDOWS_SERVICE}`)
+    log(`[Agent] Process ID: ${process.pid}`)
+    log(`[Agent] Executable path: ${process.execPath}`)
+    log(`[Agent] Working directory: ${process.cwd()}`)
     log(`[Agent] Log file: ${LOG_FILE}`)
 
     try {
@@ -61,10 +68,22 @@ class AgentService {
       log("[Agent] Screenshot module loaded successfully")
     } catch (error) {
       log(`[Agent] WARNING: Screenshot module failed: ${error.message}`)
-      log("[Agent] Service will run in limited mode (no screen capture)")
+    }
+
+    try {
+      const robotjs = require("robotjs")
+      log("[Agent] RobotJS module available: " + (robotjs ? "Yes" : "No"))
+    } catch (error) {
+      log(`[Agent] WARNING: RobotJS module unavailable: ${error.message}`)
     }
 
     this.isRunning = true
+
+    if (IS_WINDOWS_SERVICE) {
+      log("[Agent] Initializing as Windows Service...")
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+
     this.connect()
   }
 
@@ -184,21 +203,25 @@ class AgentService {
     if (this.ws) {
       this.ws.close()
     }
+
+    setTimeout(() => {
+      process.exit(0)
+    }, 1000)
   }
 }
 
-log("[Agent] Service starting in 2 seconds...")
-setTimeout(() => {
+if (IS_WINDOWS_SERVICE) {
+  log("[Agent] Detected Windows Service mode - starting immediately...")
   const agent = new AgentService()
 
   process.on("SIGINT", () => {
+    log("[Agent] Received SIGINT")
     agent.stop()
-    process.exit(0)
   })
 
   process.on("SIGTERM", () => {
+    log("[Agent] Received SIGTERM")
     agent.stop()
-    process.exit(0)
   })
 
   agent.start().catch((error) => {
@@ -206,6 +229,27 @@ setTimeout(() => {
     log(error.stack)
     process.exit(1)
   })
-}, 2000)
+} else {
+  log("[Agent] Detected console mode - starting in 2 seconds...")
+  setTimeout(() => {
+    const agent = new AgentService()
+
+    process.on("SIGINT", () => {
+      log("[Agent] Received SIGINT")
+      agent.stop()
+    })
+
+    process.on("SIGTERM", () => {
+      log("[Agent] Received SIGTERM")
+      agent.stop()
+    })
+
+    agent.start().catch((error) => {
+      log(`[FATAL] Service start failed: ${error.message}`)
+      log(error.stack)
+      process.exit(1)
+    })
+  }, 2000)
+}
 
 module.exports = AgentService
