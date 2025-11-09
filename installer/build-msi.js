@@ -51,33 +51,10 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Condition Message="You must be an administrator to install this product.">
-      Privileged
-    </Condition>
-
     <Feature Id="ProductFeature" Title="${CONFIG.productName}" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentRef Id="LogsFolder" />
     </Feature>
-
-    <CustomAction Id="InstallServiceAction"
-                  Directory="INSTALLFOLDER"
-                  Execute="deferred"
-                  Impersonate="no"
-                  ExeCommand="[INSTALLFOLDER]agent.exe --install"
-                  Return="check" />
-
-    <CustomAction Id="UninstallServiceAction"
-                  Directory="INSTALLFOLDER"
-                  Execute="deferred"
-                  Impersonate="no"
-                  ExeCommand="[INSTALLFOLDER]agent.exe --uninstall"
-                  Return="ignore" />
-
-    <InstallExecuteSequence>
-      <Custom Action="UninstallServiceAction" Before="RemoveFiles">REMOVE="ALL"</Custom>
-      <Custom Action="InstallServiceAction" After="InstallFiles">NOT REMOVE</Custom>
-    </InstallExecuteSequence>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
@@ -91,16 +68,40 @@ const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
     </Directory>
 
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <!-- Agent Executable -->
       <Component Id="AgentExecutable" Guid="*">
-        <File Id="AgentExe" Source="${CONFIG.agentExePath.replace(/\\/g, "\\\\")}" KeyPath="yes" />
+        <File Id="AgentExe" 
+              Source="${CONFIG.agentExePath.replace(/\\/g, "\\\\")}" 
+              KeyPath="yes" 
+              Vital="yes" />
+        
+        <!-- Install Windows Service -->
+        <ServiceInstall Id="ServiceInstaller"
+                        Name="MSIRemoteAgent"
+                        DisplayName="MSI Remote Agent Service"
+                        Description="Remote monitoring and control agent for MSI systems"
+                        Type="ownProcess"
+                        Start="auto"
+                        Account="LocalSystem"
+                        ErrorControl="normal"
+                        Arguments="--service" />
+        
+        <ServiceControl Id="ServiceControl"
+                        Name="MSIRemoteAgent"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
       </Component>
       
       <Component Id="ConfigJson" Guid="*">
-        <File Id="ConfigFile" Source="${CONFIG.configJsonPath.replace(/\\/g, "\\\\")}" KeyPath="yes" />
+        <File Id="ConfigFile" 
+              Source="${CONFIG.configJsonPath.replace(/\\/g, "\\\\")}" 
+              KeyPath="yes" 
+              Vital="yes" />
       </Component>
     </ComponentGroup>
 
-    <!-- Use explicit GUID for logs folder component since it uses CreateFolder -->
     <Component Id="LogsFolder" Directory="LOGSFOLDER" Guid="{A1B2C3D4-E5F6-4A5B-8C7D-9E8F7A6B5C4D}">
       <CreateFolder />
     </Component>
@@ -112,12 +113,10 @@ fs.writeFileSync(CONFIG.wxsFile, wxsContent)
 console.log("✓ Generated WiX source file:", CONFIG.wxsFile)
 
 try {
-  // Compile WiX source to object file
   console.log("\n→ Compiling WiX source...")
   execSync(`candle.exe "${CONFIG.wxsFile}" -out "${CONFIG.wixobjFile}"`, { stdio: "inherit" })
   console.log("✓ WiX compilation successful")
 
-  // Link to create MSI
   console.log("\n→ Linking MSI installer...")
   execSync(`light.exe "${CONFIG.wixobjFile}" -out "${CONFIG.msiFile}"`, { stdio: "inherit" })
   console.log("✓ MSI created successfully:", CONFIG.msiFile)
