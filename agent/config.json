@@ -1,0 +1,6 @@
+{
+  "hubUrl": "https://watson-parts.com/agenthub",
+  "reconnectDelayMs": 5000,
+  "heartbeatIntervalMs": 15000,
+  "screenCaptureIntervalMs": 1000
+}
