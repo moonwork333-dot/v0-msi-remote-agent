@@ -1,429 +1,439 @@
-const WebSocket = require("ws")
-const screenshot = require("screenshot-desktop")
-const InputController = require("./input-control")
-const fs = require("fs")
-const path = require("path")
-const Service = require("node-windows").Service
+const signalR = require("@microsoft/signalr");
+const { HttpTransportType } = require("@microsoft/signalr");
+const os = require("os");
+const { exec } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const Service = require("node-windows").Service;
 
-const AGENT_VERSION = "1.0.1"
+// Defer screenshot-desktop import until needed
+let screenshot = null;
+function getScreenshot() {
+  if (!screenshot) {
+    try {
+      screenshot = require("screenshot-desktop");
+    } catch (err) {
+      return null;
+    }
+  }
+  return screenshot;
+}
 
-const args = process.argv.slice(2)
-const command = args[0]
+// Handle command line arguments for service install/uninstall
+const args = process.argv.slice(2);
+const command = args[0];
 
 if (command === "--install") {
-  installService()
-  process.exit(0)
+  installService();
 } else if (command === "--uninstall") {
-  uninstallService()
-  process.exit(0)
+  uninstallService();
+} else {
+  // Normal agent startup
+  startAgent();
 }
 
 function installService() {
-  console.log("[Installer] Installing MSI Remote Agent service...")
+  console.log("[Installer] Installing Watson RMM Agent service...");
 
   const svc = new Service({
-    name: "MSIRemoteAgent",
-    description: "MSI Remote Agent - System Monitoring and Control",
+    name: "WatsonRMMAgent",
+    description: "Watson RMM Agent - Remote monitoring and management",
     script: process.execPath,
     nodeOptions: [],
     env: {
       name: "NODE_ENV",
       value: "production",
     },
-  })
+  });
 
   svc.on("install", () => {
-    console.log("[Installer] Service installed successfully")
-    console.log("[Installer] Starting service...")
-    svc.start()
-  })
+    console.log("[Installer] Service installed successfully");
+    console.log("[Installer] Starting service...");
+    svc.start();
+  });
 
   svc.on("start", () => {
-    console.log("[Installer] Service started successfully")
-  })
+    console.log("[Installer] Service started successfully");
+    process.exit(0);
+  });
 
   svc.on("alreadyinstalled", () => {
-    console.log("[Installer] Service already installed, restarting...")
-    svc.restart()
-  })
+    console.log("[Installer] Service already installed, restarting...");
+    svc.restart();
+  });
 
   svc.on("error", (err) => {
-    console.error("[Installer] Service installation error:", err.message)
-    process.exit(1)
-  })
+    console.error("[Installer] Service installation error:", err.message);
+    process.exit(1);
+  });
 
-  svc.install()
+  svc.install();
 }
 
 function uninstallService() {
-  console.log("[Installer] Uninstalling MSI Remote Agent service...")
+  console.log("[Installer] Uninstalling Watson RMM Agent service...");
 
   const svc = new Service({
-    name: "MSIRemoteAgent",
+    name: "WatsonRMMAgent",
     script: process.execPath,
-  })
+  });
 
   svc.on("uninstall", () => {
-    console.log("[Installer] Service uninstalled successfully")
-  })
+    console.log("[Installer] Service uninstalled successfully");
+    process.exit(0);
+  });
 
   svc.on("error", (err) => {
-    console.error("[Installer] Service uninstallation error:", err.message)
-    process.exit(1)
-  })
+    console.error("[Installer] Service uninstallation error:", err.message);
+    process.exit(1);
+  });
 
-  svc.uninstall()
+  svc.uninstall();
 }
 
-let CONFIG = {
-  dashboardUrl: "wss://v0-msi-remote-agent.vercel.app", // Default to production server
-  reconnectInterval: 5000,
-}
+function startAgent() {
+  // Generate unique agent ID
+  const agentId = `agent-${os.hostname()}-${Date.now()}`;
 
-const possibleConfigPaths = [
-  path.join(path.dirname(process.execPath), "config.json"), // Next to agent.exe
-  path.join(process.cwd(), "config.json"), // Current working directory
-  path.join(__dirname, "config.json"), // Inside pkg bundle
-]
+  // Configuration
+  const CONFIG = {
+    hubUrl: process.env.HUB_URL || "https://watson-parts.com/agenthub",
+    reconnectDelayMs: 5000,
+    heartbeatIntervalMs: 15000,
+    screenCaptureIntervalMs: 1000,
+    logFile: path.join(process.env.ProgramData || "C:\\ProgramData", "WatsonRMMAgent", "agent.log"),
+    agentId: agentId,
+  };
 
-let configLoaded = false
-for (const configPath of possibleConfigPaths) {
-  try {
-    if (fs.existsSync(configPath)) {
-      const configFile = fs.readFileSync(configPath, "utf8")
-      const loadedConfig = JSON.parse(configFile)
-      CONFIG = { ...CONFIG, ...loadedConfig }
-      console.log(`[Agent] Loaded config from: ${configPath}`)
-      console.log(`[Agent] Dashboard URL from config: ${CONFIG.dashboardUrl}`)
-      configLoaded = true
-      break
-    }
-  } catch (error) {
-    // Silently continue to next path
-  }
-}
-
-if (!configLoaded) {
-  console.log(`[Agent] No external config.json found. Using production server: ${CONFIG.dashboardUrl}`)
-}
-
-const DASHBOARD_URL = process.env.DASHBOARD_URL || CONFIG.dashboardUrl
-const AGENT_ID = process.env.AGENT_ID || require("os").hostname()
-
-const LOG_DIR = process.env.PROGRAMDATA
-  ? path.join(process.env.PROGRAMDATA, "MSIRemoteAgent", "logs")
-  : path.join(process.cwd(), "logs")
-
-if (!fs.existsSync(LOG_DIR)) {
-  fs.mkdirSync(LOG_DIR, { recursive: true })
-}
-
-const LOG_FILE = path.join(LOG_DIR, `agent-${new Date().toISOString().split("T")[0]}.log`)
-
-function log(message) {
-  const timestamp = new Date().toISOString()
-  const logMessage = `[${timestamp}] ${message}\n`
-
-  console.log(message)
-
-  try {
-    fs.appendFileSync(LOG_FILE, logMessage)
-  } catch (error) {
-    console.error("Failed to write to log file:", error.message)
-  }
-}
-
-process.on("uncaughtException", (error) => {
-  log(`[FATAL] Uncaught exception: ${error.message}`)
-  log(error.stack)
-})
-
-process.on("unhandledRejection", (reason, promise) => {
-  log(`[ERROR] Unhandled rejection: ${reason}`)
-})
-
-const IS_WINDOWS_SERVICE = process.platform === "win32" && !process.env.SESSIONNAME
-
-class AgentService {
-  constructor() {
-    this.ws = null
-    this.reconnectInterval = CONFIG.reconnectInterval || 5000
-    this.isRunning = false
-    this.inputController = new InputController()
-    this.remoteSessionActive = false
-  }
-
-  async start() {
-    log("[Agent] Starting MSI Remote Agent Service...")
-    log(`[Agent] Agent ID: ${AGENT_ID}`)
-    log(`[Agent] Server URL: ${DASHBOARD_URL}`)
-    log(`[Agent] Node version: ${process.version}`)
-    log(`[Agent] Platform: ${process.platform} ${process.arch}`)
-    log(`[Agent] Is Windows Service: ${IS_WINDOWS_SERVICE}`)
-    log(`[Agent] Process ID: ${process.pid}`)
-    log(`[Agent] Executable path: ${process.execPath}`)
-    log(`[Agent] Working directory: ${process.cwd()}`)
-    log(`[Agent] Log file: ${LOG_FILE}`)
-
+  // Ensure log directory exists
+  const logDir = path.dirname(CONFIG.logFile);
+  if (!fs.existsSync(logDir)) {
     try {
-      await screenshot({ format: "png" })
-      log("[Agent] Screenshot module loaded successfully")
-    } catch (error) {
-      log(`[Agent] WARNING: Screenshot module failed: ${error.message}`)
+      fs.mkdirSync(logDir, { recursive: true });
+    } catch (err) {
+      // Ignore if can't create
     }
-
-    try {
-      const robotjs = require("robotjs")
-      log("[Agent] RobotJS module available: " + (robotjs ? "Yes" : "No"))
-    } catch (error) {
-      log(`[Agent] WARNING: RobotJS module unavailable: ${error.message}`)
-    }
-
-    this.isRunning = true
-
-    if (IS_WINDOWS_SERVICE) {
-      log("[Agent] Initializing as Windows Service...")
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-    }
-
-    this.connect()
   }
 
-  connect() {
-    if (!this.isRunning) return
-
+  // Logging function
+  function log(message) {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] ${message}\n`;
+    
     try {
-      log("[Agent] Connecting to dashboard: " + DASHBOARD_URL)
-      this.ws = new WebSocket(DASHBOARD_URL)
+      fs.appendFileSync(CONFIG.logFile, logMessage);
+    } catch (err) {
+      // Silently fail
+    }
+    
+    try {
+      console.log(logMessage);
+    } catch (err) {
+      // Silently fail
+    }
+  }
 
-      this.ws.on("open", () => {
-        log("[Agent] Connected to dashboard")
+  // Agent state
+  let connection = null;
+  let isConnected = false;
+  let screenCaptureEnabled = false;
+  let screenCaptureInterval = null;
 
-        this.ws.send(
-          JSON.stringify({
-            type: "register",
-            agentId: AGENT_ID,
-            capabilities: {
-              screenCapture: true,
-              inputControl: this.inputController.isAvailable(),
-            },
-          }),
-        )
-      })
-
-      this.ws.on("message", async (data) => {
-        try {
-          const message = JSON.parse(data.toString())
-          await this.handleMessage(message)
-        } catch (error) {
-          log("[Agent] Error handling message: " + error.message)
+  // Get system information
+  function getSystemInfo() {
+    const networkInterfaces = os.networkInterfaces();
+    let ipAddress = "Unknown";
+    
+    for (const name of Object.keys(networkInterfaces)) {
+      for (const net of networkInterfaces[name]) {
+        if (net.family === "IPv4" && !net.internal) {
+          ipAddress = net.address;
+          break;
         }
-      })
-
-      this.ws.on("close", () => {
-        log("[Agent] Disconnected from dashboard")
-
-        if (this.remoteSessionActive) {
-          this.remoteSessionActive = false
-        }
-
-        if (this.isRunning) {
-          setTimeout(() => this.connect(), this.reconnectInterval)
-        }
-      })
-
-      this.ws.on("error", (error) => {
-        log("[Agent] WebSocket error: " + error.message)
-      })
-    } catch (error) {
-      log("[Agent] Connection error: " + error.message)
-      if (this.isRunning) {
-        setTimeout(() => this.connect(), this.reconnectInterval)
       }
     }
+
+    return {
+      hostname: os.hostname(),
+      platform: os.platform(),
+      arch: os.arch(),
+      osType: os.type(),
+      osRelease: os.release(),
+      cpus: os.cpus().length,
+      totalMemory: Math.round(os.totalmem() / (1024 * 1024 * 1024)) + " GB",
+      freeMemory: Math.round(os.freemem() / (1024 * 1024 * 1024)) + " GB",
+      uptime: Math.round(os.uptime() / 3600) + " hours",
+      ipAddress: ipAddress,
+      username: os.userInfo().username,
+      agentVersion: "1.0.0",
+    };
   }
 
-  async handleMessage(message) {
-    switch (message.type) {
-      case "request-screenshot":
-        await this.sendScreenshot()
-        break
-
-      case "start-remote-session":
-        log("[Agent] Remote session started")
-        this.remoteSessionActive = true
-        break
-
-      case "end-remote-session":
-        log("[Agent] Remote session ended")
-        this.remoteSessionActive = false
-        break
-
-      case "mouse-move":
-        if (this.inputController.isAvailable()) {
-          log(`[Agent] Mouse move received: (${message.x}, ${message.y})`)
-          if (typeof message.x === "number" && typeof message.y === "number") {
-            this.inputController.moveMouse(Math.floor(message.x), Math.floor(message.y))
-          } else {
-            log(`[Agent] Invalid mouse coordinates: x=${message.x}, y=${message.y}`)
-          }
-        } else {
-          log("[Agent] Mouse move ignored - input control unavailable")
-        }
-        break
-
-      case "mouse-click":
-        if (this.inputController.isAvailable()) {
-          log(`[Agent] Mouse click received: ${message.button || "left"}`)
-          this.inputController.mouseClick(message.button || "left")
-        } else {
-          log("[Agent] Mouse click ignored - input control unavailable")
-        }
-        break
-
-      case "mouse-double-click":
-        if (this.inputController.isAvailable()) {
-          log(`[Agent] Mouse double-click received: ${message.button || "left"}`)
-          this.inputController.mouseDoubleClick(message.button || "left")
-        }
-        break
-
-      case "mouse-down":
-        if (this.inputController.isAvailable()) {
-          log(`[Agent] Mouse down received: ${message.button || "left"}`)
-          this.inputController.mouseToggle(true, message.button || "left")
-        }
-        break
-
-      case "mouse-up":
-        if (this.inputController.isAvailable()) {
-          log(`[Agent] Mouse up received: ${message.button || "left"}`)
-          this.inputController.mouseToggle(false, message.button || "left")
-        }
-        break
-
-      case "mouse-scroll":
-        if (this.inputController.isAvailable()) {
-          log(`[Agent] Mouse scroll received: (${message.x}, ${message.y})`)
-          this.inputController.mouseScroll(message.x || 0, message.y || 0)
-        }
-        break
-
-      case "key-press":
-        if (this.inputController.isAvailable()) {
-          log(`[Agent] Key press received: ${message.key}`)
-          this.inputController.typeString(message.key)
-        } else {
-          log("[Agent] Key press ignored - input control unavailable")
-        }
-        break
-
-      case "key-tap":
-        if (this.inputController.isAvailable()) {
-          log(`[Agent] Key tap received: ${message.key}`)
-          this.inputController.keyTap(message.key, message.modifiers || [])
-        }
-        break
-
-      default:
-        log("[Agent] Unknown message type: " + message.type)
-    }
-  }
-
-  async sendScreenshot() {
-    try {
-      const img = await screenshot({ format: "png" })
-      const base64 = img.toString("base64")
-
-      const robotjs = require("robotjs")
-      let screenSize = null
+  // Execute command
+  function executeCommand(command) {
+    return new Promise((resolve) => {
       try {
-        screenSize = robotjs.getScreenSize()
+        exec(command, { timeout: 60000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+          if (error) {
+            resolve({
+              success: false,
+              output: stderr || error.message,
+              exitCode: error.code || 1,
+            });
+          } else {
+            resolve({
+              success: true,
+              output: stdout,
+              exitCode: 0,
+            });
+          }
+        });
       } catch (err) {
-        // Screen size unavailable
+        resolve({
+          success: false,
+          output: err.message,
+          exitCode: 1,
+        });
       }
+    });
+  }
 
-      this.ws.send(
-        JSON.stringify({
-          type: "screenshot",
-          agentId: AGENT_ID,
-          data: base64,
-          timestamp: Date.now(),
-          screenSize: screenSize,
-        }),
-      )
+  // Capture screen
+  async function captureScreen() {
+    try {
+      const shot = getScreenshot();
+      if (!shot) {
+        log("Screenshot module not available");
+        return null;
+      }
+      const imgBuffer = await shot({ format: "png" });
+      return imgBuffer.toString("base64");
     } catch (error) {
-      log("[Agent] Screenshot error: " + error.message)
+      log("Screen capture failed: " + error.message);
+      return null;
+    }
+  }
 
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(
-          JSON.stringify({
-            type: "screenshot-error",
-            agentId: AGENT_ID,
-            error: error.message,
-            timestamp: Date.now(),
-          }),
-        )
+  // Start screen streaming
+  function startScreenCapture() {
+    if (screenCaptureInterval) return;
+    
+    screenCaptureEnabled = true;
+    screenCaptureInterval = setInterval(async () => {
+      if (isConnected && screenCaptureEnabled) {
+        const screenData = await captureScreen();
+        if (screenData && connection) {
+          try {
+            await connection.invoke("ScreenCapture", os.hostname(), screenData);
+          } catch (error) {
+            log("Failed to send screen capture: " + error.message);
+          }
+        }
       }
+    }, CONFIG.screenCaptureIntervalMs);
+    
+    log("Screen capture started");
+  }
+
+  // Stop screen streaming
+  function stopScreenCapture() {
+    screenCaptureEnabled = false;
+    if (screenCaptureInterval) {
+      clearInterval(screenCaptureInterval);
+      screenCaptureInterval = null;
+    }
+    log("Screen capture stopped");
+  }
+
+  // Initialize SignalR connection
+  async function initializeConnection() {
+    try {
+      connection = new signalR.HubConnectionBuilder()
+        .withUrl(CONFIG.hubUrl, {
+          skipNegotiation: false,
+          transport: HttpTransportType.WebSockets,
+          withCredentials: false,
+          headers: {
+            "x-client-type": "agent",
+            "x-client-id": CONFIG.agentId
+          }
+        })
+        .withAutomaticReconnect([0, 0, 10000])
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+      
+      connection.serverTimeoutInMilliseconds = 40000;
+      connection.keepAliveInterval = 15000;
+
+      // Handle connection events
+      connection.onreconnecting((error) => {
+        log("Reconnecting to hub... " + (error?.message || ""));
+        isConnected = false;
+      });
+
+      connection.onreconnected((connectionId) => {
+        log("Reconnected to hub with ID: " + connectionId);
+        isConnected = true;
+        registerAgent();
+      });
+
+      connection.onclose((error) => {
+        log("Connection closed: " + (error?.message || ""));
+        isConnected = false;
+        stopScreenCapture();
+        setTimeout(startConnection, CONFIG.reconnectDelayMs);
+      });
+
+      // Handle incoming commands
+      connection.on("ExecuteCommand", async (cmd) => {
+        log("Received command: " + cmd);
+        const result = await executeCommand(cmd);
+        try {
+          await connection.invoke("CommandResult", os.hostname(), cmd, result);
+        } catch (error) {
+          log("Failed to send command result: " + error.message);
+        }
+      });
+
+      // Handle screen capture requests
+      connection.on("StartScreenCapture", () => {
+        log("Starting screen capture...");
+        startScreenCapture();
+      });
+
+      connection.on("StopScreenCapture", () => {
+        log("Stopping screen capture...");
+        stopScreenCapture();
+      });
+
+      connection.on("CaptureScreenOnce", async () => {
+        log("Capturing single screenshot...");
+        const screenData = await captureScreen();
+        if (screenData) {
+          try {
+            await connection.invoke("ScreenCapture", os.hostname(), screenData);
+          } catch (error) {
+            log("Failed to send screenshot: " + error.message);
+          }
+        }
+      });
+
+      // Handle system info requests
+      connection.on("GetSystemInfo", async () => {
+        log("System info requested");
+        const sysInfo = getSystemInfo();
+        try {
+          await connection.invoke("SystemInfo", os.hostname(), sysInfo);
+        } catch (error) {
+          log("Failed to send system info: " + error.message);
+        }
+      });
+
+      // Handle ping
+      connection.on("Ping", async () => {
+        try {
+          await connection.invoke("Pong", os.hostname());
+        } catch (error) {
+          log("Failed to send pong: " + error.message);
+        }
+      });
+
+      log("SignalR connection initialized");
+    } catch (error) {
+      log("Failed to initialize connection: " + error.message);
+      throw error;
     }
   }
 
-  stop() {
-    log("[Agent] Stopping agent service...")
-    this.isRunning = false
-
-    if (this.ws) {
-      this.ws.close()
+  // Register agent with hub
+  async function registerAgent() {
+    const sysInfo = getSystemInfo();
+    try {
+      await connection.invoke("RegisterAgent", sysInfo);
+      log("Agent registered successfully");
+    } catch (error) {
+      log("Failed to register agent: " + error.message);
     }
-
-    setTimeout(() => {
-      process.exit(0)
-    }, 1000)
   }
-}
 
-// Moved console logs to after command-line argument checks
-console.log(`[Agent] MSI Remote Agent v${AGENT_VERSION}`)
-console.log(`[Agent] Starting ${IS_WINDOWS_SERVICE ? "as Windows Service" : "in console mode"}...`)
+  // Start connection
+  async function startConnection() {
+    try {
+      await connection.start();
+      log("Connected to hub: " + CONFIG.hubUrl);
+      isConnected = true;
+      await registerAgent();
+    } catch (error) {
+      log("Failed to connect: " + error.message);
+      setTimeout(startConnection, CONFIG.reconnectDelayMs);
+    }
+  }
 
-if (IS_WINDOWS_SERVICE) {
-  const agent = new AgentService()
+  // Heartbeat
+  function startHeartbeat() {
+    setInterval(async () => {
+      if (isConnected && connection) {
+        try {
+          const sysInfo = getSystemInfo();
+          await connection.invoke("Heartbeat", sysInfo);
+        } catch (error) {
+          log("Heartbeat failed: " + error.message);
+        }
+      }
+    }, CONFIG.heartbeatIntervalMs);
+  }
 
+  // Main entry point
+  async function main() {
+    log("Watson RMM Agent v1.0.0 started");
+    log("Hub URL: " + CONFIG.hubUrl);
+    log("Hostname: " + os.hostname());
+    log("Log file: " + CONFIG.logFile);
+    
+    try {
+      await initializeConnection();
+      await startConnection();
+      startHeartbeat();
+      log("Agent initialized and running");
+    } catch (error) {
+      log("Fatal error during startup: " + error.message);
+      setTimeout(() => main(), 10000);
+    }
+  }
+
+  // Handle process termination
   process.on("SIGINT", () => {
-    log("[Agent] Received SIGINT")
-    agent.stop()
-  })
+    log("Received SIGINT - shutting down agent...");
+    stopScreenCapture();
+    if (connection) {
+      connection.stop();
+    }
+    process.exit(0);
+  });
 
   process.on("SIGTERM", () => {
-    log("[Agent] Received SIGTERM")
-    agent.stop()
-  })
+    log("Received SIGTERM - shutting down agent...");
+    stopScreenCapture();
+    if (connection) {
+      connection.stop();
+    }
+    process.exit(0);
+  });
 
-  agent.start().catch((error) => {
-    log(`[FATAL] Service start failed: ${error.message}`)
-    log(error.stack)
-    process.exit(1)
-  })
-} else {
-  setTimeout(() => {
-    const agent = new AgentService()
+  // Keep process alive on errors
+  process.on("uncaughtException", (error) => {
+    log("Uncaught exception: " + error.message);
+  });
 
-    process.on("SIGINT", () => {
-      log("[Agent] Received SIGINT")
-      agent.stop()
-    })
+  process.on("unhandledRejection", (reason) => {
+    log("Unhandled rejection: " + reason);
+  });
 
-    process.on("SIGTERM", () => {
-      log("[Agent] Received SIGTERM")
-      agent.stop()
-    })
+  // Start agent
+  main().catch((error) => {
+    log("Failed to start agent: " + error.message);
+  });
 
-    agent.start().catch((error) => {
-      log(`[FATAL] Service start failed: ${error.message}`)
-      log(error.stack)
-      process.exit(1)
-    })
-  }, 2000)
+  // Keep the process alive
+  setInterval(() => {}, 60000);
 }
-
-module.exports = AgentService
