@@ -1,27 +1,27 @@
 {
-  "name": "msi-remote-agent",
+  "name": "watson-rmm-agent",
   "version": "1.0.0",
-  "description": "Windows agent for MSI Remote Administration",
+  "description": "Watson RMM - Remote monitoring agent with screen streaming and command execution",
   "main": "service.js",
   "bin": "service.js",
   "scripts": {
     "start": "node service.js",
-    "build": "pkg service.js --targets node16-win-x64 --output dist/agent.exe --options no-warnings"
+    "build": "pkg service.js --targets node18-win-x64 --output peng-rmm-agent.exe"
   },
-  "keywords": ["remote", "administration", "windows", "agent"],
-  "author": "Your Name",
-  "license": "MIT",
+  "keywords": [
+    "remote-monitoring",
+    "rmm",
+    "agent",
+    "watson"
+  ],
+  "author": "Watson Parts",
+  "license": "Proprietary",
   "dependencies": {
-    "ws": "^8.14.2",
-    "screenshot-desktop": "^1.12.7",
-    "robotjs": "^0.6.0"
+    "@microsoft/signalr": "^8.0.0",
+    "node-windows": "^1.0.0-beta.8",
+    "screenshot-desktop": "^1.15.0"
   },
-  "devDependencies": {
-    "pkg": "^5.8.1"
-  },
-  "pkg": {
-    "targets": ["node16-win-x64"],
-    "outputPath": "dist",
-    "assets": ["node_modules/robotjs/build/Release/*.node", "node_modules/screenshot-desktop/**/*"]
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
