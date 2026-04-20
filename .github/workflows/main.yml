@@ -30,10 +30,10 @@ jobs:
           Write-Host "Installing dependencies..."
           Set-Location "agent"
           npm install
-          npm install -g pkg
+          npm install pkg
           
           Write-Host "Compiling service.js to standalone exe..."
-          pkg service.js --targets node18-win-x64 --output peng-rmm-agent.exe
+          npx pkg service.js --targets node18-win-x64 --output peng-rmm-agent.exe
           
           if (-not (Test-Path "peng-rmm-agent.exe")) {
             Write-Host "ERROR: peng-rmm-agent.exe not created"
